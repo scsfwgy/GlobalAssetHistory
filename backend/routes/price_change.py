@@ -6,11 +6,13 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from service.price_change.price_change_service import (
+    fetch_daily_returns,
     fetch_yearly_returns,
     fetch_monthly_returns,
     fetch_monthly_returns_batch,
     get_presets,
     get_color_range,
+    run_dca_backtest,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,4 +115,47 @@ def get_monthly_returns_batch():
         return jsonify({"year": year, "data": result})
     except Exception as e:
         logger.exception("Failed to fetch monthly returns batch: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@price_change_bp.route("/daily", methods=["POST"])
+def get_daily_returns():
+    """Return daily returns for a symbol in a given year and month."""
+    body = request.get_json(silent=True) or {}
+    symbol = body.get("symbol", "").strip().upper()
+    asset_type = body.get("type", "stock").strip().lower()
+    year = body.get("year")
+    month = body.get("month")
+
+    if not symbol or not year or not month:
+        return jsonify({"error": "symbol, year and month are required"}), 400
+
+    try:
+        year = int(year)
+        month = int(month)
+    except (ValueError, TypeError):
+        return jsonify({"error": "year and month must be integers"}), 400
+
+    if month < 1 or month > 12:
+        return jsonify({"error": "month must be between 1 and 12"}), 400
+
+    try:
+        days = fetch_daily_returns(symbol, asset_type, year, month)
+        return jsonify({"symbol": symbol, "type": asset_type, "year": year, "month": month, "days": days})
+    except Exception as e:
+        logger.exception("Failed to fetch daily returns: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@price_change_bp.route("/backtest", methods=["POST"])
+def backtest():
+    """Run DCA backtest using daily prices."""
+    body = request.get_json(silent=True) or {}
+    try:
+        result = run_dca_backtest(body)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to run backtest: %s", e)
         return jsonify({"error": str(e)}), 500

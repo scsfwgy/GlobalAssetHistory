@@ -13,7 +13,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -947,6 +947,191 @@ def _compute_monthly_returns(
     return result
 
 
+def _compute_daily_returns_for_month(
+    timestamps: List[int],
+    closes: List[Optional[float]],
+    year: int,
+    month: int,
+) -> List[dict]:
+    """Compute daily returns for a specific month from daily closes.
+
+    Daily return uses the previous available close:
+    current close / previous close - 1.
+    """
+    result: List[dict] = []
+    prev_close: Optional[float] = None
+
+    for ts, close in zip(timestamps, closes):
+        if close is None:
+            continue
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        daily_return = None
+        if prev_close not in (None, 0):
+            daily_return = round((close / prev_close - 1) * 100, 2)
+
+        if dt.year == year and dt.month == month:
+            result.append({
+                "day": dt.day,
+                "date": dt.date().isoformat(),
+                "return": daily_return,
+                "close": round(close, 6),
+            })
+
+        prev_close = close
+
+    return result
+
+
+def _series_points_in_range(
+    timestamps: List[int],
+    closes: List[Optional[float]],
+    start_date: date,
+    end_date: date,
+) -> List[Tuple[date, float]]:
+    points: List[Tuple[date, float]] = []
+    for ts, close in zip(timestamps, closes):
+        if close is None:
+            continue
+        current_date = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        if start_date <= current_date <= end_date:
+            points.append((current_date, float(close)))
+    return points
+
+
+def _normalize_frequency(frequency: str) -> str:
+    clean = (frequency or "monthly").strip().lower()
+    if clean not in {"once", "daily", "weekly", "monthly"}:
+        raise ValueError("frequency must be one of once, daily, weekly, monthly")
+    return clean
+
+
+def _safe_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_iso_date(value: str, field_name: str) -> date:
+    if not value:
+        raise ValueError(f"{field_name} is required")
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as e:
+        raise ValueError(f"{field_name} must be in YYYY-MM-DD format") from e
+
+
+def _next_month_anchor(current: date, months: int, target_day: int) -> date:
+    total_months = (current.year * 12 + (current.month - 1)) + months
+    year = total_months // 12
+    month = total_months % 12 + 1
+    if month == 12:
+        next_month = date(year + 1, 1, 1)
+    else:
+        next_month = date(year, month + 1, 1)
+    last_day = (next_month - timedelta(days=1)).day
+    return date(year, month, min(target_day, last_day))
+
+
+def _generate_schedule_dates(
+    start_date: date,
+    end_date: date,
+    frequency: str,
+    interval: int,
+    anchor_day: Optional[int] = None,
+    weekday: Optional[int] = None,
+) -> List[date]:
+    schedule: List[date] = []
+    current = start_date
+
+    if frequency == "once":
+        return [start_date]
+
+    if frequency == "daily":
+        step = timedelta(days=interval)
+        while current <= end_date:
+            schedule.append(current)
+            current += step
+        return schedule
+
+    if frequency == "weekly":
+        target_weekday = 0 if weekday is None else max(0, min(6, weekday))
+        delta = (target_weekday - start_date.weekday()) % 7
+        current = start_date + timedelta(days=delta)
+        step = timedelta(days=7 * interval)
+        while current <= end_date:
+            schedule.append(current)
+            current += step
+        return schedule
+
+    target_day = anchor_day or start_date.day
+    current = date(start_date.year, start_date.month, min(target_day, start_date.day))
+    if current < start_date:
+        current = _next_month_anchor(current, 1, target_day)
+
+    while current <= end_date:
+        if current >= start_date:
+            schedule.append(current)
+        current = _next_month_anchor(current, interval, target_day)
+
+    return schedule
+
+
+def _resolve_execution_points(
+    price_points: List[Tuple[date, float]],
+    schedule_dates: List[date],
+) -> List[Tuple[date, float]]:
+    executed: List[Tuple[date, float]] = []
+    pointer = 0
+    last_used_date: Optional[date] = None
+
+    for planned_date in schedule_dates:
+        while pointer < len(price_points) and price_points[pointer][0] < planned_date:
+            pointer += 1
+        if pointer >= len(price_points):
+            break
+        exec_date, price = price_points[pointer]
+        if last_used_date == exec_date:
+            continue
+        executed.append((exec_date, price))
+        last_used_date = exec_date
+
+    return executed
+
+
+def _build_equity_curve(
+    price_points: List[Tuple[date, float]],
+    executed_points: List[Tuple[date, float, float, float, float]],
+    initial_amount: float,
+    initial_date: Optional[date],
+    initial_price: Optional[float],
+) -> List[dict]:
+    curve: List[dict] = []
+    invested = initial_amount
+    units = 0.0
+    exec_idx = 0
+
+    if initial_amount > 0 and initial_date is not None and initial_price not in (None, 0):
+        units = initial_amount / float(initial_price)
+
+    for point_date, price in price_points:
+        while exec_idx < len(executed_points) and executed_points[exec_idx][0] == point_date:
+            _, _, amount, bought_units, cum_units = executed_points[exec_idx]
+            invested += amount
+            units = cum_units
+            exec_idx += 1
+
+        value = units * price
+        curve.append({
+            "date": point_date.isoformat(),
+            "price": round(price, 6),
+            "invested": round(invested, 2),
+            "value": round(value, 2),
+        })
+
+    return curve
+
+
 def _fetch_daily_closes_stock(symbol: str) -> tuple:
     """Fetch daily close data for a stock via Yahoo chart API. Returns (timestamps, closes)."""
     series = _fetch_daily_series_stock(symbol)
@@ -998,6 +1183,22 @@ def fetch_monthly_returns(symbol: str, asset_type: str, year: int) -> list:
     return _compute_monthly_returns(series.timestamps, series.closes, year)
 
 
+def fetch_daily_returns(symbol: str, asset_type: str, year: int, month: int) -> list:
+    """Fetch daily returns for a symbol in a given month."""
+    logger.info("Fetching daily returns for %s (%s) %d-%02d", symbol, asset_type, year, month)
+
+    clean_sym = symbol.strip().upper()
+    clean_type = asset_type.strip().lower()
+
+    if clean_type not in _DAILY_SERIES_FETCHERS:
+        return []
+
+    series = _fetch_daily_series_cached(clean_sym, clean_type)
+    if series.error:
+        return []
+    return _compute_daily_returns_for_month(series.timestamps, series.closes, year, month)
+
+
 def fetch_monthly_returns_batch(symbols: List[Dict[str, str]], year: int) -> Dict[str, list]:
     """Fetch monthly returns for multiple symbols in a given year."""
     data: Dict[str, list] = {}
@@ -1012,3 +1213,118 @@ def fetch_monthly_returns_batch(symbols: List[Dict[str, str]], year: int) -> Dic
         months = fetch_monthly_returns(symbol, asset_type, year)
         data[symbol] = months
     return data
+
+
+def run_dca_backtest(payload: Dict) -> Dict:
+    """Run a single-symbol DCA backtest using daily price data."""
+    symbol = str(payload.get("symbol", "")).strip().upper()
+    asset_type = str(payload.get("type", "stock")).strip().lower()
+    start_date = _parse_iso_date(payload.get("start_date"), "start_date")
+    end_date = _parse_iso_date(payload.get("end_date"), "end_date")
+    if end_date < start_date:
+        raise ValueError("end_date must be on or after start_date")
+
+    frequency = _normalize_frequency(payload.get("frequency", "monthly"))
+    interval = max(1, _safe_int(payload.get("interval"), 1))
+    amount = float(payload.get("amount", 0) or 0)
+    initial_amount = float(payload.get("initial_amount", 0) or 0)
+    day_of_month = _safe_int(payload.get("day_of_month"), start_date.day)
+    weekday = payload.get("weekday")
+    weekday = None if weekday in (None, "") else max(0, min(6, _safe_int(weekday, 0)))
+
+    if not symbol:
+        raise ValueError("symbol is required")
+    if amount <= 0 and initial_amount <= 0:
+        raise ValueError("amount or initial_amount must be greater than 0")
+
+    series = _fetch_daily_series_cached(symbol, asset_type)
+    if series.error:
+        raise ValueError(series.error)
+
+    price_points = _series_points_in_range(series.timestamps, series.closes, start_date, end_date)
+    if not price_points:
+        raise ValueError("no price data in selected date range")
+
+    schedule_dates = _generate_schedule_dates(
+        start_date=start_date,
+        end_date=end_date,
+        frequency=frequency,
+        interval=interval,
+        anchor_day=day_of_month,
+        weekday=weekday,
+    )
+
+    execution_dates = _resolve_execution_points(price_points, schedule_dates)
+
+    cashflows: List[dict] = []
+    executed_points: List[Tuple[date, float, float, float, float]] = []
+    cumulative_units = 0.0
+
+    first_trade_date, first_trade_price = price_points[0]
+    if initial_amount > 0:
+        initial_units = initial_amount / first_trade_price
+        cumulative_units += initial_units
+        cashflows.append({
+            "date": first_trade_date.isoformat(),
+            "planned_date": start_date.isoformat(),
+            "amount": round(initial_amount, 2),
+            "price": round(first_trade_price, 6),
+            "units": round(initial_units, 8),
+            "cum_units": round(cumulative_units, 8),
+            "kind": "initial",
+        })
+
+    for exec_date, price in execution_dates:
+        if amount <= 0:
+            break
+        units = amount / price
+        cumulative_units += units
+        executed_points.append((exec_date, price, amount, units, cumulative_units))
+        cashflows.append({
+            "date": exec_date.isoformat(),
+            "planned_date": exec_date.isoformat(),
+            "amount": round(amount, 2),
+            "price": round(price, 6),
+            "units": round(units, 8),
+            "cum_units": round(cumulative_units, 8),
+            "kind": "recurring",
+        })
+
+    equity_curve = _build_equity_curve(
+        price_points=price_points,
+        executed_points=executed_points,
+        initial_amount=initial_amount,
+        initial_date=first_trade_date if initial_amount > 0 else None,
+        initial_price=first_trade_price if initial_amount > 0 else None,
+    )
+
+    invested = initial_amount + amount * len(executed_points)
+    last_date, last_price = price_points[-1]
+    final_value = cumulative_units * last_price
+    profit = final_value - invested
+    return_pct = 0.0 if invested == 0 else (profit / invested) * 100
+    days = max((last_date - first_trade_date).days, 1)
+    annualized_return_pct = 0.0
+    if invested > 0 and final_value > 0:
+        annualized_return_pct = ((final_value / invested) ** (365 / days) - 1) * 100
+
+    return {
+        "symbol": symbol,
+        "type": asset_type,
+        "source": series.source,
+        "frequency": frequency,
+        "interval": interval,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "summary": {
+            "invested": round(invested, 2),
+            "final_value": round(final_value, 2),
+            "profit": round(profit, 2),
+            "return_pct": round(return_pct, 2),
+            "annualized_return_pct": round(annualized_return_pct, 2),
+            "trade_count": len(cashflows),
+            "last_price": round(last_price, 6),
+        },
+        "cashflows": cashflows,
+        "equity_curve": equity_curve,
+    }
