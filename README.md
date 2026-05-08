@@ -242,7 +242,12 @@ PORT=8080 ./start.sh start
 ├── frontend/
 │   ├── price-change.html
 │   ├── css/app.css
-│   └── js/price-change.js
+│   └── js/
+│       ├── api.js
+│       ├── backtest.js
+│       ├── charts.js
+│       ├── drilldown.js
+│       └── price-change.js
 ├── doc/screenshot/
 └── logs/
 ```

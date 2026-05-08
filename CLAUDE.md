@@ -65,7 +65,12 @@ GlobalAssetHistory/
 ├── frontend/
 │   ├── price-change.html
 │   ├── css/app.css
-│   └── js/price-change.js
+│   └── js/
+│       ├── api.js                 # API endpoint constants
+│       ├── backtest.js            # 回测控件、回测图、回测结果表
+│       ├── charts.js              # 年度/月度 SVG 图表
+│       ├── drilldown.js           # 年→月→日钻取卡片
+│       └── price-change.js        # 主状态、表格、预设、初始化
 ├── doc/screenshot/
 ├── logs/
 ├── README.md
@@ -159,7 +164,17 @@ GlobalAssetHistory/
 
 ### 6. 前端状态
 
-`frontend/js/price-change.js` 使用模块级变量：
+前端使用多个 classic script，共享全局作用域，不使用 bundler。
+
+脚本加载顺序在 `frontend/price-change.html` 中很重要：
+
+1. `api.js`
+2. `price-change.js`
+3. `charts.js`
+4. `drilldown.js`
+5. `backtest.js`
+
+`frontend/js/price-change.js` 仍负责主状态：
 
 - `symbols`
 - `PRESETS`
