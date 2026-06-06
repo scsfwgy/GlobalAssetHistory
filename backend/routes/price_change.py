@@ -14,6 +14,7 @@ from service.price_change.price_change_service import (
     get_color_range,
     run_dca_backtest,
     run_crash_stats,
+    get_crash_chart_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -178,4 +179,23 @@ def crash_stats():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Failed to run crash stats: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@price_change_bp.route("/crash-chart", methods=["POST"])
+def crash_chart():
+    """Return daily close prices around a crash event for charting.
+
+    Request body:
+        {"symbol": "QQQ", "type": "stock", "pre_crash_date": "2022-05-04",
+         "trading_days": 30}
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        result = get_crash_chart_data(body)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to get crash chart data: %s", e)
         return jsonify({"error": str(e)}), 500

@@ -449,3 +449,69 @@ def run_crash_stats(payload: Dict) -> Dict:
         },
         "crashes": crashes,
     }
+
+
+def get_crash_chart_data(payload: Dict) -> Dict:
+    """Return a window of daily close prices around a crash for charting.
+
+    Request payload:
+        symbol: str
+        type: str (asset type)
+        pre_crash_date: str (YYYY-MM-DD) — the trading day before the crash
+        trading_days: int (default 30) — how many trading days after crash to include
+
+    Returns:
+        dict with prices list [{date, close}] for the window.
+    """
+    symbol = str(payload.get("symbol", "")).strip().upper()
+    asset_type = str(payload.get("type", "stock")).strip().lower()
+    pre_crash_date = _parse_iso_date(payload.get("pre_crash_date"), "pre_crash_date")
+    trading_days = _safe_int(payload.get("trading_days"), 30)
+
+    if not symbol:
+        raise ValueError("symbol is required")
+    if trading_days < 1 or trading_days > 250:
+        raise ValueError("trading_days must be between 1 and 250")
+
+    series = _fetch_daily_series_cached(symbol, asset_type)
+    if series.error:
+        raise ValueError(series.error)
+
+    # Build (date, close) list
+    points: list = []
+    for ts, close in zip(series.timestamps, series.closes):
+        if close is None:
+            continue
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        points.append((dt, float(close)))
+
+    # Find the index of pre_crash_date
+    start_idx = None
+    for idx, (d, _) in enumerate(points):
+        if d == pre_crash_date:
+            start_idx = idx
+            break
+
+    if start_idx is None:
+        raise ValueError(f"pre_crash_date {pre_crash_date.isoformat()} not found in price data")
+
+    # Extract window: from pre_crash_date through the next trading_days trading days
+    # That's start_idx (pre-crash day) + trading_days+1 data points
+    end_idx = min(start_idx + trading_days + 1, len(points))
+    window = points[start_idx:end_idx]
+
+    prices = [
+        {"date": d.isoformat(), "close": round(c, 6)}
+        for d, c in window
+    ]
+
+    pre_crash_close = prices[0]["close"] if prices else None
+
+    return {
+        "symbol": symbol,
+        "type": asset_type,
+        "pre_crash_date": pre_crash_date.isoformat(),
+        "pre_crash_close": pre_crash_close,
+        "trading_days": trading_days,
+        "prices": prices,
+    }
