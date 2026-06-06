@@ -13,6 +13,7 @@ from service.price_change.price_change_service import (
     get_presets,
     get_color_range,
     run_dca_backtest,
+    run_crash_stats,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,4 +159,23 @@ def backtest():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Failed to run backtest: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@price_change_bp.route("/crash-stats", methods=["POST"])
+def crash_stats():
+    """Detect single-day crash events and compute recovery metrics.
+
+    Request body:
+        {"symbol": "QQQ", "type": "stock", "start_date": "2020-01-01",
+         "end_date": "2025-12-31", "threshold_pct": 4.77}
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        result = run_crash_stats(body)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to run crash stats: %s", e)
         return jsonify({"error": str(e)}), 500

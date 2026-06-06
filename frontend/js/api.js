@@ -7,3 +7,4 @@ const MONTHLY_ENDPOINT = `${API_BASE}/api/price-change/monthly`;
 const BATCH_MONTHLY_ENDPOINT = `${API_BASE}/api/price-change/monthly-batch`;
 const DAILY_ENDPOINT = `${API_BASE}/api/price-change/daily`;
 const BACKTEST_ENDPOINT = `${API_BASE}/api/price-change/backtest`;
+const CRASH_STATS_ENDPOINT = `${API_BASE}/api/price-change/crash-stats`;

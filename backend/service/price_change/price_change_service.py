@@ -19,6 +19,7 @@ from .calculations import (
     _safe_int,
     _series_points_in_range,
 )
+from .crash_stats import compute_crash_statistics
 from .common import (
     DAILY_SERIES_TTL_SECONDS,
     ERROR_CACHE_TTL_SECONDS,
@@ -373,4 +374,78 @@ def run_dca_backtest(payload: Dict) -> Dict:
         },
         "cashflows": cashflows,
         "equity_curve": equity_curve,
+    }
+
+
+def run_crash_stats(payload: Dict) -> Dict:
+    """Analyze single-day crash events and recovery for a symbol.
+
+    Request payload:
+        symbol: str (e.g. "QQQ")
+        type: str (asset type, default "stock")
+        start_date: str (YYYY-MM-DD)
+        end_date: str (YYYY-MM-DD)
+        threshold_pct: float (e.g. 4.77 = drop >= 4.77%)
+
+    Returns:
+        dict with crashes list and summary statistics.
+    """
+    symbol = str(payload.get("symbol", "")).strip().upper()
+    asset_type = str(payload.get("type", "stock")).strip().lower()
+    start_date = _parse_iso_date(payload.get("start_date"), "start_date")
+    end_date = _parse_iso_date(payload.get("end_date"), "end_date")
+    threshold_pct = float(payload.get("threshold_pct", 4.77))
+
+    if end_date < start_date:
+        raise ValueError("end_date must be on or after start_date")
+    if not symbol:
+        raise ValueError("symbol is required")
+    if threshold_pct <= 0:
+        raise ValueError("threshold_pct must be positive")
+
+    series = _fetch_daily_series_cached(symbol, asset_type)
+    if series.error:
+        raise ValueError(series.error)
+
+    crashes = compute_crash_statistics(
+        timestamps=series.timestamps,
+        closes=series.closes,
+        start_date=start_date,
+        end_date=end_date,
+        threshold_pct=threshold_pct,
+    )
+
+    # Summary stats
+    total = len(crashes)
+    recovered_count = sum(1 for c in crashes if c["recovered"])
+    recovery_days_list = [c["recovery_days"] for c in crashes if c["recovery_days"] is not None]
+    avg_recovery = round(sum(recovery_days_list) / len(recovery_days_list), 1) if recovery_days_list else None
+    median_recovery = None
+    if recovery_days_list:
+        sorted_days = sorted(recovery_days_list)
+        n = len(sorted_days)
+        if n % 2 == 0:
+            median_recovery = round((sorted_days[n // 2 - 1] + sorted_days[n // 2]) / 2, 1)
+        else:
+            median_recovery = round(float(sorted_days[n // 2]), 1)
+    max_drop = min((c["drop_pct"] for c in crashes), default=None)
+    avg_drop = round(sum(c["drop_pct"] for c in crashes) / len(crashes), 2) if crashes else None
+
+    return {
+        "symbol": symbol,
+        "type": asset_type,
+        "source": series.source,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "threshold_pct": threshold_pct,
+        "summary": {
+            "total_crashes": total,
+            "recovered": recovered_count,
+            "not_recovered": total - recovered_count,
+            "avg_recovery_days": avg_recovery,
+            "median_recovery_days": median_recovery,
+            "max_drop_pct": max_drop,
+            "avg_drop_pct": avg_drop,
+        },
+        "crashes": crashes,
     }

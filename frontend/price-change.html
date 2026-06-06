@@ -436,6 +436,100 @@
             font-weight: 600;
             font-variant-numeric: tabular-nums;
         }
+
+        /* ─── Crash Stats ─── */
+        .crash-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            padding: 16px 0;
+        }
+
+        .crash-summary-item {
+            text-align: center;
+            padding: 12px 8px;
+            background: var(--apple-surface-2);
+            border-radius: 8px;
+        }
+
+        .crash-summary-label {
+            font-size: 11px;
+            color: var(--apple-text-tertiary);
+            margin-bottom: 4px;
+        }
+
+        .crash-summary-val {
+            font-size: 18px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .crash-status {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .crash-status.recovered {
+            background: rgba(48, 209, 88, 0.15);
+            color: var(--data-positive);
+        }
+
+        .crash-status.not-recovered {
+            background: rgba(255, 159, 10, 0.15);
+            color: #ff9f0a;
+        }
+
+        .crash-table-wrap {
+            overflow-x: auto;
+            margin-top: 8px;
+        }
+
+        .crash-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .crash-table th {
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--apple-text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: right;
+            border-bottom: 1px solid var(--apple-divider);
+            white-space: nowrap;
+        }
+
+        .crash-table th:first-child { text-align: left; }
+
+        .crash-table td {
+            padding: 8px 14px;
+            text-align: right;
+            border-bottom: 1px solid var(--apple-divider);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .crash-table td:first-child { text-align: left; color: var(--apple-text-secondary); }
+
+        .crash-table tr:last-child td { border-bottom: none; }
+
+        @media (max-width: 768px) {
+            .crash-summary-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .crash-summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
     </style>
 </head>
 <body>
@@ -575,6 +669,45 @@
                 </div>
             </div>
         </div>
+
+        <!-- Crash Statistics -->
+        <div id="pcCrashStats" class="pc-monthly" style="display:block;">
+            <div class="pc-monthly-header">
+                <span class="pc-chart-title">📉 暴跌统计 — 单日暴跌检测与恢复分析</span>
+            </div>
+            <div class="pc-bt-row">
+                <span class="pc-bt-label">股票代码</span>
+                <input type="text" id="crashSymbol" class="pc-bt-input" value="QQQ" placeholder="QQQ" maxlength="10" style="text-transform:uppercase">
+                <select id="crashType" class="pc-bt-input" style="width:100px;">
+                    <option value="stock" selected>美股</option>
+                    <option value="crypto">数字货币</option>
+                </select>
+                <span class="pc-bt-label">暴跌幅度</span>
+                <input type="number" id="crashThreshold" class="pc-bt-input" value="4.77" min="0.01" step="0.1" style="width:80px;">
+                <span style="font-size:12px;color:var(--apple-text-tertiary)">%</span>
+                <span class="pc-bt-label">起止日期</span>
+                <input type="date" id="crashStartDate" class="pc-bt-input" style="width:150px;">
+                <span style="color:var(--apple-text-tertiary);font-size:12px;">~</span>
+                <input type="date" id="crashEndDate" class="pc-bt-input" style="width:150px;">
+                <button id="crashRunBtn" class="pc-btn primary" style="padding:7px 14px;">查询暴跌</button>
+                <button id="crashCloseBtn" class="pc-btn" style="padding:7px 14px;">清空</button>
+            </div>
+            <div class="crash-error" id="crashError" style="display:none;"></div>
+            <div class="pc-loading" id="crashLoading" style="display:none;">
+                <div class="spinner"></div>
+                <span>分析中...</span>
+            </div>
+            <div id="crashResult" style="display:none;">
+                <div id="crashSummary"></div>
+                <div id="crashEmpty" style="display:none;text-align:center;padding:24px;color:var(--apple-text-secondary);font-size:13px;"></div>
+                <div class="crash-table-wrap" id="crashTableWrap">
+                    <table class="crash-table">
+                        <thead><tr id="crashTableHead"></tr></thead>
+                        <tbody id="crashTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script src="js/api.js"></script>
@@ -582,5 +715,6 @@
     <script src="js/charts.js"></script>
     <script src="js/drilldown.js"></script>
     <script src="js/backtest.js"></script>
+    <script src="js/crash-stats.js"></script>
 </body>
 </html>
