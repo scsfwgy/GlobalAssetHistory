@@ -1,0 +1,15 @@
+{
+  "buildCommand": "pip install -r backend/requirements.txt",
+  "outputDirectory": "frontend",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/leader-breakout", "destination": "/leader-breakout.html" },
+    { "source": "/", "destination": "/price-change.html" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "memory": 512,
+      "maxDuration": 30
+    }
+  }
+}
