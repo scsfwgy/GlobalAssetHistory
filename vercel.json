@@ -9,8 +9,7 @@
   "functions": {
     "api/index.py": {
       "memory": 512,
-      "maxDuration": 30,
-      "runtime": "python@3.12"
+      "maxDuration": 30
     }
   }
 }
