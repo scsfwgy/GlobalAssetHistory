@@ -1,9 +1,7 @@
 {
-  "buildCommand": "uv pip install --system -r backend/requirements.txt",
   "outputDirectory": "frontend",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/leader-breakout", "destination": "/leader-breakout.html" },
     { "source": "/", "destination": "/price-change.html" }
   ],
   "functions": {

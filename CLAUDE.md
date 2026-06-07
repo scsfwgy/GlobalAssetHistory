@@ -41,7 +41,7 @@ PORT=8080 ./start.sh debug
 
 ```bash
 python3 -m venv backend/.venv
-backend/.venv/bin/pip install -r backend/requirements.txt
+backend/.venv/bin/pip install -r requirements.txt
 ```
 
 ## 目录结构

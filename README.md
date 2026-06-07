@@ -64,7 +64,7 @@
 首次运行会自动：
 
 - 创建 `backend/.venv`
-- 安装 `backend/requirements.txt`
+- 安装 `requirements.txt`
 - 启动服务
 
 默认地址：

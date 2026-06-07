@@ -16,7 +16,7 @@ setup() {
     if [ ! -d backend/.venv ]; then
         python3 -m venv backend/.venv
     fi
-    $VENV_PIP install -q -r backend/requirements.txt
+    $VENV_PIP install -q -r requirements.txt
     mkdir -p logs
 }
 
