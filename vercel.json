@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pip install -r backend/requirements.txt",
+  "buildCommand": "uv pip install --system -r backend/requirements.txt",
   "outputDirectory": "frontend",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
