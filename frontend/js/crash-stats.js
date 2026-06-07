@@ -213,6 +213,8 @@
         recovery: "#30d158",
         crashDot: "#ff9f0a",
         grid: "var(--apple-divider)",
+        up: "#30d158",
+        down: "#ff453a",
     };
 
     function renderCrashChart(chartData, crash) {
@@ -229,8 +231,20 @@
         var cw = W - PAD.left - PAD.right;
         var ch = H - PAD.top - PAD.bottom;
 
-        // Find value range (include pre_crash_close as reference)
-        var allVals = prices.map(function (p) { return p.close; });
+        // Use candlesticks when the backend provided OHLC AND the window is
+        // small enough for candles to stay readable; otherwise fall back to a
+        // close-only line chart (e.g. A-share indices, or very wide windows).
+        var useCandles = !!chartData.has_ohlc && prices.length <= 80;
+
+        // Find value range. In candle mode include highs/lows so wicks fit.
+        var allVals = [];
+        prices.forEach(function (p) {
+            if (useCandles) {
+                allVals.push(p.high, p.low);
+            } else {
+                allVals.push(p.close);
+            }
+        });
         if (preCrashClose != null) allVals.push(preCrashClose);
         var minVal = Math.min.apply(null, allVals);
         var maxVal = Math.max.apply(null, allVals);
@@ -269,22 +283,41 @@
             refLine += '<text x="' + (W - PAD.right + 6) + '" y="' + (refY + 4) + '" fill="var(--apple-text-tertiary)" font-size="10">暴跌前 ' + preCrashClose.toFixed(2) + '</text>';
         }
 
-        // ── Price line ──
-        var linePath = "";
-        var dots = "";
-        prices.forEach(function (p, i) {
-            var cx = xPos(i), cy = yPos(p.close);
-            if (i === 0) linePath += "M";
-            else linePath += "L";
-            linePath += cx + "," + cy;
-
-            var dotColor = CHART_COLORS.line;
-            var dotR = 1.5;
-            if (i === crashIdx) { dotColor = CHART_COLORS.crashDot; dotR = 4; }
-            else if (i === bottomIdx) { dotColor = CHART_COLORS.bottom; dotR = 4; }
-            else if (i === recoveryIdx) { dotColor = CHART_COLORS.recovery; dotR = 4; }
-            dots += '<circle cx="' + cx + '" cy="' + cy + '" r="' + dotR + '" fill="' + dotColor + '" stroke="var(--apple-bg)" stroke-width="0.8"/>';
-        });
+        // ── Price geometry: candlesticks (with OHLC) or a close line ──
+        var seriesSvg = "";
+        if (useCandles) {
+            // Candle width derived from slot size; leave a gap between candles.
+            var slot = cw / prices.length;
+            var bodyW = Math.max(2, Math.min(14, slot * 0.62));
+            prices.forEach(function (p, i) {
+                var cx = xPos(i);
+                var up = p.close >= p.open;
+                var color = up ? CHART_COLORS.up : CHART_COLORS.down;
+                var yHigh = yPos(p.high);
+                var yLow = yPos(p.low);
+                var yOpen = yPos(p.open);
+                var yClose = yPos(p.close);
+                var bodyTop = Math.min(yOpen, yClose);
+                var bodyH = Math.max(1, Math.abs(yClose - yOpen));
+                // Wick (high-low)
+                seriesSvg += '<line x1="' + cx + '" y1="' + yHigh + '" x2="' + cx + '" y2="' + yLow + '" stroke="' + color + '" stroke-width="1"/>';
+                // Body (open-close)
+                seriesSvg += '<rect x="' + (cx - bodyW / 2) + '" y="' + bodyTop + '" width="' + bodyW + '" height="' + bodyH + '" fill="' + color + '" stroke="' + color + '" stroke-width="0.6"/>';
+            });
+        } else {
+            var linePath = "";
+            prices.forEach(function (p, i) {
+                linePath += (i === 0 ? "M" : "L") + xPos(i) + "," + yPos(p.close);
+            });
+            seriesSvg = '<path d="' + linePath + '" fill="none" stroke="' + CHART_COLORS.line + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>';
+            prices.forEach(function (p, i) {
+                var dotColor = CHART_COLORS.line, dotR = 1.5;
+                if (i === crashIdx) { dotColor = CHART_COLORS.crashDot; dotR = 4; }
+                else if (i === bottomIdx) { dotColor = CHART_COLORS.bottom; dotR = 4; }
+                else if (i === recoveryIdx) { dotColor = CHART_COLORS.recovery; dotR = 4; }
+                seriesSvg += '<circle cx="' + xPos(i) + '" cy="' + yPos(p.close) + '" r="' + dotR + '" fill="' + dotColor + '" stroke="var(--apple-bg)" stroke-width="0.8"/>';
+            });
+        }
 
         // ── Key event markers (vertical) ──
         var markers = "";
@@ -317,7 +350,16 @@
         var tooltipRects = "";
         prices.forEach(function (p, i) {
             var cx = xPos(i);
-            tooltipRects += '<rect x="' + (cx - cw / prices.length / 2) + '" y="' + PAD.top + '" width="' + (cw / prices.length) + '" height="' + ch + '" fill="transparent" data-idx="' + i + '" data-date="' + p.date + '" data-close="' + p.close.toFixed(2) + '"/>';
+            var attrs = ' data-idx="' + i + '" data-date="' + p.date + '" data-close="' + p.close.toFixed(2) + '"';
+            if (p.open != null && p.high != null && p.low != null) {
+                attrs += ' data-open="' + p.open.toFixed(2) + '" data-high="' + p.high.toFixed(2) + '" data-low="' + p.low.toFixed(2) + '"';
+            }
+            // Pct change vs previous trading day's close
+            if (i > 0 && prices[i - 1].close) {
+                var chg = (p.close / prices[i - 1].close - 1) * 100;
+                attrs += ' data-chg="' + chg.toFixed(2) + '"';
+            }
+            tooltipRects += '<rect x="' + (cx - cw / prices.length / 2) + '" y="' + PAD.top + '" width="' + (cw / prices.length) + '" height="' + ch + '" fill="transparent"' + attrs + '/>';
         });
 
         // ── Assemble SVG ──
@@ -325,8 +367,7 @@
             '<rect width="' + W + '" height="' + H + '" fill="transparent"/>' +
             yGrid +
             refLine +
-            '<path d="' + linePath + '" fill="none" stroke="' + CHART_COLORS.line + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>' +
-            dots +
+            seriesSvg +
             markers +
             xLabels +
             '<g class="crash-chart-hover-zones">' + tooltipRects + '</g>' +
@@ -347,7 +388,25 @@
             rect.addEventListener("mouseenter", function () {
                 var d = rect.getAttribute("data-date");
                 var c = rect.getAttribute("data-close");
-                tooltipEl.innerHTML = '<div style="font-weight:600;">' + d + '</div><div>收盘价: <span style="color:var(--apple-blue);">$' + c + '</span></div>';
+                var o = rect.getAttribute("data-open");
+                var h = rect.getAttribute("data-high");
+                var l = rect.getAttribute("data-low");
+                var chg = rect.getAttribute("data-chg");
+                var html = '<div style="font-weight:600;">' + d + '</div>';
+                if (o != null && h != null && l != null) {
+                    html += '<div>开: <span style="color:var(--apple-text-secondary);">' + o + '</span>' +
+                        '　高: <span style="color:var(--data-positive);">' + h + '</span></div>' +
+                        '<div>低: <span style="color:var(--data-negative);">' + l + '</span>' +
+                        '　收: <span style="color:var(--apple-blue);">' + c + '</span></div>';
+                } else {
+                    html += '<div>收盘价: <span style="color:var(--apple-blue);">' + c + '</span></div>';
+                }
+                if (chg != null) {
+                    var chgNum = parseFloat(chg);
+                    var chgColor = chgNum >= 0 ? "var(--data-positive)" : "var(--data-negative)";
+                    html += '<div>涨跌: <span style="color:' + chgColor + ';">' + (chgNum >= 0 ? "+" : "") + chg + '%</span></div>';
+                }
+                tooltipEl.innerHTML = html;
                 tooltipEl.style.display = "block";
             });
             rect.addEventListener("mousemove", function (e) {

@@ -513,18 +513,33 @@ def get_crash_chart_data(payload: Dict) -> Dict:
     if series.error:
         raise ValueError(series.error)
 
-    # Build (date, close) list
+    # Build (date, close, open, high, low) list. OHLC arrays are optional and
+    # aligned with timestamps; index into them only when present and valid.
+    has_ohlc = bool(series.opens and series.highs and series.lows)
+    n = len(series.timestamps)
+
+    def _ohlc_at(arr, i):
+        if arr is None or i >= len(arr) or arr[i] is None:
+            return None
+        return float(arr[i])
+
     points: list = []
-    for ts, close in zip(series.timestamps, series.closes):
+    for i in range(n):
+        close = series.closes[i] if i < len(series.closes) else None
         if close is None:
             continue
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc).date()
-        points.append((dt, float(close)))
+        dt = datetime.fromtimestamp(series.timestamps[i], tz=timezone.utc).date()
+        points.append((
+            dt, float(close),
+            _ohlc_at(series.opens, i),
+            _ohlc_at(series.highs, i),
+            _ohlc_at(series.lows, i),
+        ))
 
     # Find the index of pre_crash_date
     start_idx = None
-    for idx, (d, _) in enumerate(points):
-        if d == pre_crash_date:
+    for idx, point in enumerate(points):
+        if point[0] == pre_crash_date:
             start_idx = idx
             break
 
@@ -536,10 +551,17 @@ def get_crash_chart_data(payload: Dict) -> Dict:
     end_idx = min(start_idx + trading_days + 1, len(points))
     window = points[start_idx:end_idx]
 
-    prices = [
-        {"date": d.isoformat(), "close": round(c, 6)}
-        for d, c in window
-    ]
+    def _price_point(d, c, o, h, low):
+        p = {"date": d.isoformat(), "close": round(c, 6)}
+        if o is not None and h is not None and low is not None:
+            p["open"] = round(o, 6)
+            p["high"] = round(h, 6)
+            p["low"] = round(low, 6)
+        return p
+
+    prices = [_price_point(*pt) for pt in window]
+    # Only advertise candlestick data when every point in the window has OHLC.
+    window_has_ohlc = has_ohlc and all("open" in p for p in prices)
 
     pre_crash_close = prices[0]["close"] if prices else None
 
@@ -549,6 +571,7 @@ def get_crash_chart_data(payload: Dict) -> Dict:
         "pre_crash_date": pre_crash_date.isoformat(),
         "pre_crash_close": pre_crash_close,
         "trading_days": trading_days,
+        "has_ohlc": window_has_ohlc,
         "prices": prices,
     }
 

@@ -47,6 +47,13 @@ class PriceSeries:
     source: Optional[str]
     fetched_at: float
     error: Optional[str] = None
+    # Optional OHLC, aligned with timestamps. Populated only by fetchers that
+    # carry full candles (used for candlestick charts). closes stays the source
+    # of truth for returns; for stocks closes may be adjusted while opens/highs/
+    # lows are raw prices.
+    opens: Optional[List[Optional[float]]] = None
+    highs: Optional[List[Optional[float]]] = None
+    lows: Optional[List[Optional[float]]] = None
 
 
 def empty_series(source: Optional[str] = None, error: Optional[str] = None) -> PriceSeries:
@@ -57,5 +64,9 @@ def series_from_points(
     timestamps: List[int],
     closes: List[Optional[float]],
     source: str,
+    opens: Optional[List[Optional[float]]] = None,
+    highs: Optional[List[Optional[float]]] = None,
+    lows: Optional[List[Optional[float]]] = None,
 ) -> PriceSeries:
-    return PriceSeries(timestamps, closes, source, time.time())
+    return PriceSeries(timestamps, closes, source, time.time(),
+                       opens=opens, highs=highs, lows=lows)

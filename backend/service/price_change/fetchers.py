@@ -125,18 +125,22 @@ def _fetch_daily_series_stock_direct(symbol: str) -> PriceSeries:
     try:
         result = data["chart"]["result"][0]
         timestamps = result["timestamp"]
+        quote = result["indicators"]["quote"][0]
         adjclose = result.get("indicators", {}).get("adjclose")
         if adjclose and adjclose[0].get("adjclose"):
             closes = adjclose[0]["adjclose"]
         else:
-            closes = result["indicators"]["quote"][0]["close"]
+            closes = quote["close"]
+        opens = quote.get("open")
+        highs = quote.get("high")
+        lows = quote.get("low")
     except (KeyError, IndexError, TypeError) as e:
         logger.error("Unexpected Yahoo response for %s", symbol)
         return empty_series("yahoo", f"unexpected response: {e}")
 
     if not timestamps:
         return empty_series("yahoo", "empty data")
-    return series_from_points(timestamps, closes, "yahoo")
+    return series_from_points(timestamps, closes, "yahoo", opens=opens, highs=highs, lows=lows)
 
 
 def _fetch_daily_series_stock_yfinance(symbol: str) -> PriceSeries:
@@ -152,7 +156,10 @@ def _fetch_daily_series_stock_yfinance(symbol: str) -> PriceSeries:
             closes = hist["Adj Close"].tolist()
         else:
             closes = hist["Close"].tolist()
-        return series_from_points(timestamps, closes, "yfinance")
+        opens = hist["Open"].tolist() if "Open" in hist.columns else None
+        highs = hist["High"].tolist() if "High" in hist.columns else None
+        lows = hist["Low"].tolist() if "Low" in hist.columns else None
+        return series_from_points(timestamps, closes, "yfinance", opens=opens, highs=highs, lows=lows)
     except Exception as e:
         logger.error("yfinance daily fetch failed for %s: %s", symbol, e)
         return empty_series("yfinance", str(e))
@@ -246,8 +253,11 @@ def _fetch_daily_series_crypto_binance(symbol: str) -> PriceSeries:
         return empty_series("binance", "empty data")
 
     timestamps = [k[0] // 1000 for k in all_klines]
+    opens = [float(k[1]) for k in all_klines]
+    highs = [float(k[2]) for k in all_klines]
+    lows = [float(k[3]) for k in all_klines]
     closes = [float(k[4]) for k in all_klines]
-    return series_from_points(timestamps, closes, "binance")
+    return series_from_points(timestamps, closes, "binance", opens=opens, highs=highs, lows=lows)
 
 
 def _okx_pair(symbol: str) -> str:
@@ -345,8 +355,11 @@ def _fetch_daily_series_crypto_okx(symbol: str) -> PriceSeries:
 
     all_candles.reverse()
     timestamps = [int(c[0]) // 1000 for c in all_candles]
+    opens = [float(c[1]) for c in all_candles]
+    highs = [float(c[2]) for c in all_candles]
+    lows = [float(c[3]) for c in all_candles]
     closes = [float(c[4]) for c in all_candles]
-    return series_from_points(timestamps, closes, "okx")
+    return series_from_points(timestamps, closes, "okx", opens=opens, highs=highs, lows=lows)
 
 
 def _fetch_crypto_coingecko(symbol: str) -> Dict[str, float]:
@@ -403,8 +416,11 @@ def _fetch_daily_series_crypto_coingecko(symbol: str) -> PriceSeries:
         return empty_series("coingecko", "empty data")
 
     timestamps = [int(item[0] / 1000) for item in data]
+    opens = [float(item[1]) for item in data]
+    highs = [float(item[2]) for item in data]
+    lows = [float(item[3]) for item in data]
     closes = [float(item[4]) for item in data]
-    return series_from_points(timestamps, closes, "coingecko")
+    return series_from_points(timestamps, closes, "coingecko", opens=opens, highs=highs, lows=lows)
 
 
 def _fetch_daily_series_crypto(symbol: str) -> PriceSeries:
@@ -456,27 +472,32 @@ def _cn_stock_secid(code: str) -> str:
 
 
 def _parse_east_money_klines(data: List[str]) -> tuple:
-    """Parse East Money kline strings into (timestamps, closes).
+    """Parse East Money kline strings into (timestamps, closes, opens, highs, lows).
 
     Each kline: "2024-01-02,open,close,high,low,..."
     """
     timestamps = []
     closes = []
+    opens = []
+    highs = []
+    lows = []
     for line in data:
         parts = line.split(",")
-        if len(parts) < 3:
+        if len(parts) < 5:
             continue
         try:
             # Date format 2024-01-02 → timestamp
             dt = datetime.strptime(parts[0], "%Y-%m-%d")
             # Replace with timezone-aware: treat as UTC date
             ts = int(dt.replace(tzinfo=timezone.utc).timestamp())
-            close = float(parts[2])
             timestamps.append(ts)
-            closes.append(close)
+            opens.append(float(parts[1]))
+            closes.append(float(parts[2]))
+            highs.append(float(parts[3]))
+            lows.append(float(parts[4]))
         except (ValueError, IndexError):
             continue
-    return timestamps, closes
+    return timestamps, closes, opens, highs, lows
 
 
 def _parse_east_money_klines_full(data: List[str]) -> list:
@@ -545,10 +566,10 @@ def _fetch_daily_series_cn_stock(symbol: str) -> PriceSeries:
         logger.warning("East Money returned no data for %s", symbol)
         return empty_series("eastmoney", "empty data")
 
-    timestamps, closes = _parse_east_money_klines(klines)
+    timestamps, closes, opens, highs, lows = _parse_east_money_klines(klines)
     if not timestamps:
         return empty_series("eastmoney", "parse failed")
-    return series_from_points(timestamps, closes, "eastmoney")
+    return series_from_points(timestamps, closes, "eastmoney", opens=opens, highs=highs, lows=lows)
 
 
 def _fetch_daily_closes_cn_stock(symbol: str) -> tuple:
