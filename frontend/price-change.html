@@ -252,6 +252,38 @@
             padding: 32px 24px;
         }
 
+        /* ─── Tabs ─── */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--apple-divider);
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--apple-text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            margin-bottom: -1px;
+        }
+
+        .tab-btn:hover { color: var(--apple-text-primary); }
+
+        .tab-btn.active {
+            color: var(--apple-text-primary);
+            border-bottom-color: var(--apple-blue);
+        }
+
+        .tab-panel { display: none; }
+
+        .tab-panel.active { display: block; }
+
         .pc-table td, .pc-table th {
             padding: 10px 14px;
             max-width: 110px;
@@ -562,18 +594,17 @@
         }
 
     </style>
+    <script defer src="/_vercel/insights/script.js"></script>
+    <script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
     <header class="header">
         <div class="header-left">
             <div class="logo">
                 <div class="logo-text">
-                    <h1>历年涨跌幅</h1>
+                    <h1>GlobalAssetHistory</h1>
                 </div>
             </div>
-            <nav class="nav-links">
-                <a href="/leader-breakout">A股龙头统计</a>
-            </nav>
         </div>
         <div class="status">
             <div class="status-dot" id="statusDot"></div>
@@ -582,6 +613,14 @@
     </header>
 
     <main class="main pc-main">
+        <nav class="tab-bar">
+            <button class="tab-btn active" data-tab="yearly">历年涨跌幅</button>
+            <button class="tab-btn" data-tab="backtest">回测</button>
+            <button class="tab-btn" data-tab="crash">暴跌统计</button>
+            <button class="tab-btn" data-tab="leader">A股涨停分析</button>
+        </nav>
+
+        <div class="tab-panel active" id="tab-yearly">
         <div class="controls-bar" style="margin-bottom: 12px;">
             <div class="control-group">
                 <span class="control-label">统计代码</span>
@@ -645,8 +684,11 @@
         <!-- Monthly breakdown container (multiple cards stacked) -->
         <div id="pcMonthlyContainer"></div>
 
+        </div><!-- /tab-yearly -->
+
         <!-- Backtest -->
-        <div id="pcBacktest" class="pc-monthly" style="display:none;">
+        <div class="tab-panel" id="tab-backtest">
+        <div id="pcBacktest" class="pc-monthly">
             <div class="pc-monthly-header">
                 <span class="pc-chart-title">📈 回测</span>
                 <button id="pcBtClose" class="pc-btn" style="padding:4px 10px;font-size:12px;">关闭</button>
@@ -704,8 +746,11 @@
             </div>
         </div>
 
+        </div><!-- /tab-backtest -->
+
         <!-- Crash Statistics -->
-        <div id="pcCrashStats" class="pc-monthly" style="display:block;">
+        <div class="tab-panel" id="tab-crash">
+        <div id="pcCrashStats" class="pc-monthly">
             <div class="pc-monthly-header">
                 <span class="pc-chart-title">📉 暴跌统计 — 单日暴跌检测与恢复分析</span>
             </div>
@@ -745,6 +790,48 @@
                 </div>
             </div>
         </div>
+        </div><!-- /tab-crash -->
+
+        <!-- A股涨停分析 -->
+        <div class="tab-panel" id="tab-leader">
+        <div class="pc-monthly">
+            <div class="pc-monthly-header">
+                <span class="pc-chart-title">🐉 A股龙头股回调冲击新高统计</span>
+                <span style="font-size:11px;color:var(--apple-text-tertiary);">沪深主板 · 不含ST/创业板/科创板 · 连续涨停≥6天 · 按首次涨停日期从近到远</span>
+            </div>
+            <div class="pc-bt-row">
+                <span class="pc-bt-label">开始日期</span>
+                <input type="date" id="lbStartDate" class="pc-bt-input" style="width:150px;" value="2024-09-30">
+                <span class="pc-bt-label">涨停阈值</span>
+                <input type="number" id="lbThreshold" class="pc-bt-input" value="9.5" min="0" max="10" step="0.1" style="width:80px;">
+                <span style="font-size:12px;color:var(--apple-text-tertiary);">%</span>
+                <span class="pc-bt-label">最少连续</span>
+                <input type="number" id="lbMinDays" class="pc-bt-input" value="6" min="2" max="30" step="1" style="width:70px;">
+                <span style="font-size:12px;color:var(--apple-text-tertiary);">天</span>
+                <button id="lbRunBtn" class="pc-btn primary">开始扫描</button>
+                <button id="lbExportBtn" class="pc-btn" style="display:none;">📥 导出Excel</button>
+            </div>
+            <div class="lb-progress-wrap" id="lbProgressWrap" style="display:none; margin-bottom: 12px;">
+                <div class="lb-progress-track"><div class="lb-progress-fill" id="lbProgress" style="width:0%;"></div></div>
+                <div id="lbProgressText" style="font-size:12px;color:var(--apple-text-secondary);margin-top:6px;">扫描中...</div>
+            </div>
+            <div class="crash-error" id="lbError" style="display:none;"></div>
+            <div class="pc-loading" id="lbLoading" style="display:none;">
+                <div class="spinner"></div><span>全市场扫描中，预计约2分钟...</span>
+            </div>
+            <div id="lbResult" style="display:none;">
+                <div id="lbSummary"></div>
+                <div id="lbEmpty" style="display:none;text-align:center;padding:24px;color:var(--apple-text-secondary);font-size:13px;"></div>
+                <div class="crash-table-wrap" id="lbTableWrap">
+                    <table class="crash-table">
+                        <thead><tr id="lbTableHead"></tr></thead>
+                        <tbody id="lbTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div><!-- /tab-leader -->
+
     </main>
 
     <script src="js/api.js"></script>
@@ -753,5 +840,17 @@
     <script src="js/drilldown.js"></script>
     <script src="js/backtest.js"></script>
     <script src="js/crash-stats.js"></script>
+    <script src="js/leader-breakout.js"></script>
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+    </script>
 </body>
 </html>

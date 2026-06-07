@@ -27,11 +27,6 @@ def index():
     return send_from_directory(str(FRONTEND_DIR), "price-change.html")
 
 
-@app.route("/leader-breakout")
-def leader_breakout_page():
-    return send_from_directory(str(FRONTEND_DIR), "leader-breakout.html")
-
-
 @app.route("/<path:filename>")
 def frontend_files(filename):
     return send_from_directory(str(FRONTEND_DIR), filename)

@@ -101,13 +101,13 @@
 
         // Summary
         var recoveredPct = s.qualified > 0 ? Math.round(s.recovered / s.qualified * 100) : 0;
-        summaryDiv.innerHTML = '<div class="summary-grid">' +
-            '<div class="summary-item"><div class="summary-label">扫描股票</div><div class="summary-val">' + s.total_stocks_scanned + '</div></div>' +
-            '<div class="summary-item"><div class="summary-label">符合条件</div><div class="summary-val" style="color:var(--apple-blue);">' + s.qualified + '</div></div>' +
-            '<div class="summary-item"><div class="summary-label">已突破前高</div><div class="summary-val" style="color:var(--data-positive);">' + s.recovered + ' (' + recoveredPct + '%)</div></div>' +
-            '<div class="summary-item"><div class="summary-label">未突破</div><div class="summary-val" style="color:var(--data-negative);">' + s.not_recovered + '</div></div>' +
-            '<div class="summary-item"><div class="summary-label">平均回调天数</div><div class="summary-val">' + (s.avg_pullback_days != null ? s.avg_pullback_days : "—") + '</div></div>' +
-            '<div class="summary-item"><div class="summary-label">平均突破天数</div><div class="summary-val">' + (s.avg_breakthrough_days != null ? s.avg_breakthrough_days : "—") + '</div></div>' +
+        summaryDiv.innerHTML = '<div class="crash-summary-grid">' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">扫描股票</div><div class="crash-summary-val">' + s.total_stocks_scanned + '</div></div>' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">符合条件</div><div class="crash-summary-val" style="color:var(--apple-blue);">' + s.qualified + '</div></div>' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">已突破前高</div><div class="crash-summary-val" style="color:var(--data-positive);">' + s.recovered + ' (' + recoveredPct + '%)</div></div>' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">未突破</div><div class="crash-summary-val" style="color:var(--data-negative);">' + s.not_recovered + '</div></div>' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">平均回调天数</div><div class="crash-summary-val">' + (s.avg_pullback_days != null ? s.avg_pullback_days : "—") + '</div></div>' +
+            '<div class="crash-summary-item"><div class="crash-summary-label">平均突破天数</div><div class="crash-summary-val">' + (s.avg_breakthrough_days != null ? s.avg_breakthrough_days : "—") + '</div></div>' +
             '</div>';
 
         // Table header
