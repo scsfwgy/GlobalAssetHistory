@@ -20,10 +20,9 @@ from .calculations import (
     _series_points_in_range,
 )
 from .crash_stats import compute_crash_statistics
-from .leader_breakout import (
-    export_leader_breakout_excel as _export_leader_breakout_excel,
-    run_leader_breakout_scan as _run_leader_breakout_scan,
-)
+# NOTE: leader_breakout depends on akshare/pandas (heavy, excluded from the
+# Vercel deployment). Import it lazily inside the endpoint functions so the
+# rest of the app loads without those packages installed.
 from .common import (
     DAILY_SERIES_TTL_SECONDS,
     ERROR_CACHE_TTL_SECONDS,
@@ -548,6 +547,9 @@ def run_leader_breakout(payload: Dict) -> Dict:
     if workers < 1 or workers > 50:
         raise ValueError("workers must be between 1 and 50")
 
+    # Lazy import — pulls in akshare/pandas only when this endpoint is hit
+    from .leader_breakout import run_leader_breakout_scan as _run_leader_breakout_scan
+
     return _run_leader_breakout_scan(
         start_date=start_date,
         threshold=threshold,
@@ -560,5 +562,8 @@ def run_leader_breakout(payload: Dict) -> Dict:
 
 def export_leader_breakout(payload: Dict) -> bytes:
     """Run the scan (uses cache if available) and return Excel file bytes."""
+    # Lazy import — pulls in akshare/pandas/openpyxl only when this endpoint is hit
+    from .leader_breakout import export_leader_breakout_excel as _export_leader_breakout_excel
+
     result = run_leader_breakout(payload)
     return _export_leader_breakout_excel(result)
