@@ -7,3 +7,5 @@ venv/
 logs/
 .DS_Store
 backend/config/visit_count.json
+.env.local
+backend/config/wishes.json

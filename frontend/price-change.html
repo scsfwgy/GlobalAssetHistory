@@ -593,6 +593,118 @@
             }
         }
 
+        /* ─── Wish Wall ─── */
+        .wish-admin-toggle {
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--apple-text-tertiary);
+            user-select: none;
+            transition: color 0.15s;
+        }
+        .wish-admin-toggle:hover { color: var(--apple-text-primary); }
+
+        .wish-admin-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .wish-form {
+            background: var(--apple-surface-2);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 20px;
+        }
+
+        .wish-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 64px;
+            resize: vertical;
+            padding: 10px 12px;
+            background: var(--apple-surface-1);
+            border: 1px solid var(--apple-divider);
+            border-radius: 8px;
+            color: var(--apple-text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s ease;
+            margin-bottom: 10px;
+        }
+        .wish-textarea:focus { border-color: var(--apple-blue); }
+
+        .wish-form-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .wish-captcha-box {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
+            line-height: 0;
+            min-width: 120px;
+            min-height: 44px;
+            background: var(--apple-surface-1);
+        }
+
+        .wish-msg {
+            margin-top: 10px;
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+        .wish-msg.is-error { background: rgba(255, 69, 58, 0.1); color: var(--data-negative); }
+        .wish-msg.is-ok { background: rgba(48, 209, 88, 0.12); color: var(--data-positive); }
+
+        .wish-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .wish-card {
+            background: var(--apple-surface-2);
+            border-radius: 10px;
+            padding: 14px 16px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .wish-card-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--apple-text-primary);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .wish-card-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--apple-text-tertiary);
+        }
+
+        .wish-card-nick { font-weight: 600; color: var(--apple-text-secondary); }
+
+        .wish-card-del {
+            cursor: pointer;
+            color: var(--data-negative);
+            font-size: 11px;
+            opacity: 0.7;
+        }
+        .wish-card-del:hover { opacity: 1; }
+
     </style>
     <script defer src="/_vercel/insights/script.js"></script>
     <script defer src="/_vercel/speed-insights/script.js"></script>
@@ -618,6 +730,7 @@
             <button class="tab-btn active" data-tab="yearly">历年涨跌幅</button>
             <button class="tab-btn" data-tab="backtest">回测</button>
             <button class="tab-btn" data-tab="crash">暴跌统计</button>
+            <button class="tab-btn" data-tab="wishes">心愿墙</button>
         </nav>
 
         <div class="tab-panel active" id="tab-yearly">
@@ -832,6 +945,39 @@
         </div>
         </div><!-- /tab-leader -->
 
+        <!-- 心愿墙 -->
+        <div class="tab-panel" id="tab-wishes">
+        <div class="pc-monthly">
+            <div class="pc-monthly-header">
+                <span class="pc-chart-title">🌟 心愿墙 — 想看什么标的、想要什么功能，留个言</span>
+                <span class="wish-admin-toggle" id="wishAdminToggle" title="管理">⚙</span>
+            </div>
+            <div class="wish-admin-row" id="wishAdminRow" style="display:none;">
+                <span class="pc-bt-label">管理员 Token</span>
+                <input type="password" id="wishAdminToken" class="pc-bt-input" style="width:200px;" placeholder="填入后每条心愿可删除">
+                <button id="wishAdminSave" class="pc-btn" style="padding:7px 14px;">保存</button>
+                <span id="wishAdminHint" style="font-size:12px;color:var(--apple-text-tertiary);"></span>
+            </div>
+            <div class="wish-form">
+                <textarea id="wishText" class="wish-textarea" maxlength="200" placeholder="写下你的心愿（最多 200 字）..."></textarea>
+                <div class="wish-form-row">
+                    <input type="text" id="wishNick" class="pc-bt-input" maxlength="24" style="width:150px;" placeholder="昵称（可选）">
+                    <span class="wish-captcha-box" id="wishCaptchaBox" title="点击刷新验证码"></span>
+                    <input type="text" id="wishCaptchaInput" class="pc-bt-input" style="width:110px;text-transform:uppercase;" maxlength="8" placeholder="验证码">
+                    <button id="wishSubmitBtn" class="pc-btn primary" style="padding:7px 18px;">提交心愿</button>
+                </div>
+                <div class="wish-msg" id="wishMsg" style="display:none;"></div>
+            </div>
+            <div id="wishLoading" class="pc-loading" style="display:none;">
+                <div class="spinner"></div><span>加载中...</span>
+            </div>
+            <div id="wishEmpty" style="display:none;text-align:center;padding:32px;color:var(--apple-text-tertiary);font-size:13px;">
+                还没有心愿，来许下第一个吧 ✨
+            </div>
+            <div id="wishList" class="wish-list"></div>
+        </div>
+        </div><!-- /tab-wishes -->
+
     </main>
 
     <script src="js/api.js"></script>
@@ -842,6 +988,7 @@
     <script src="js/backtest.js"></script>
     <script src="js/crash-stats.js"></script>
     <script src="js/leader-breakout.js"></script>
+    <script src="js/wishes.js"></script>
     <script>
         // Tab switching
         document.querySelectorAll('.tab-btn').forEach(function(btn) {

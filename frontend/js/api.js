@@ -11,3 +11,6 @@ const CRASH_STATS_ENDPOINT = `${API_BASE}/api/price-change/crash-stats`;
 const CRASH_CHART_ENDPOINT = `${API_BASE}/api/price-change/crash-chart`;
 const LEADER_BREAKOUT_ENDPOINT = `${API_BASE}/api/price-change/leader-breakout`;
 const LEADER_BREAKOUT_EXPORT_ENDPOINT = `${API_BASE}/api/price-change/leader-breakout/export`;
+const WISHES_ENDPOINT = `${API_BASE}/api/wishes`;
+const WISH_CAPTCHA_ENDPOINT = `${API_BASE}/api/wishes/captcha`;
+const WISH_VERIFY_ADMIN_ENDPOINT = `${API_BASE}/api/wishes/verify-admin`;

@@ -54,14 +54,19 @@ GlobalAssetHistory/
 │   ├── config/
 │   │   └── price_change_config.json
 │   ├── routes/
-│   │   └── price_change.py
+│   │   ├── price_change.py
+│   │   └── wishes.py                   # 心愿墙蓝图（匿名提交 + 验证码 + 删除）
 │   └── service/
-│       └── price_change/
-│           ├── calculations.py          # 收益计算、日期计划、回测曲线构建
-│           ├── common.py                # PriceSeries、HTTP session、常量
-│           ├── config.py                # 配置加载与访问器
-│           ├── fetchers.py              # Yahoo/Binance/OKX/CoinGecko/East Money fetcher
-│           └── price_change_service.py  # 公共 API 与编排层
+│       ├── price_change/
+│       │   ├── calculations.py          # 收益计算、日期计划、回测曲线构建
+│       │   ├── cache_store.py           # Upstash Redis REST 客户端（两级缓存 L2）
+│       │   ├── common.py                # PriceSeries、HTTP session、常量
+│       │   ├── config.py                # 配置加载与访问器
+│       │   ├── fetchers.py              # Yahoo/Binance/OKX/CoinGecko/East Money fetcher
+│       │   └── price_change_service.py  # 公共 API 与编排层
+│       └── wishes/
+│           ├── captcha.py               # SVG 验证码生成与一次性校验
+│           └── wishes_service.py        # 心愿增删查、IP 限频、管理员鉴权
 ├── frontend/
 │   ├── price-change.html
 │   ├── css/app.css
@@ -69,8 +74,11 @@ GlobalAssetHistory/
 │       ├── api.js                 # API endpoint constants
 │       ├── backtest.js            # 回测控件、回测图、回测结果表
 │       ├── charts.js              # 年度/月度 SVG 图表
+│       ├── crash-stats.js         # 暴跌统计面板
 │       ├── drilldown.js           # 年→月→日钻取卡片
-│       └── price-change.js        # 主状态、表格、预设、初始化
+│       ├── leader-breakout.js     # A股龙头股涨停分析
+│       ├── price-change.js        # 主状态、表格、预设、初始化
+│       └── wishes.js              # 心愿墙：提交、验证码、管理员删除
 ├── doc/screenshot/
 ├── logs/
 ├── README.md

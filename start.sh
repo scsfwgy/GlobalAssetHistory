@@ -4,6 +4,13 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
+# 自动加载本地密钥（.env.local 不进 git，存放 WISH_ADMIN_TOKEN 等）
+if [ -f .env.local ]; then
+    set -a
+    . ./.env.local
+    set +a
+fi
+
 VENV_PYTHON="backend/.venv/bin/python3"
 VENV_PIP="backend/.venv/bin/pip"
 PIDFILE="logs/server.pid"

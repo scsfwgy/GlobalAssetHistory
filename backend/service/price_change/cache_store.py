@@ -74,3 +74,39 @@ def cache_incr(key: str) -> Optional[int]:
         return int(result) if result is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def cache_del(key: str) -> bool:
+    result = _command(["DEL", _KEY_PREFIX + key])
+    return isinstance(result, int) and result > 0
+
+
+def cache_expire(key: str, ttl_seconds: int) -> bool:
+    result = _command(["EXPIRE", _KEY_PREFIX + key, str(int(ttl_seconds))])
+    return result == 1
+
+
+def cache_lpush(key: str, value: str) -> Optional[int]:
+    result = _command(["LPUSH", _KEY_PREFIX + key, value])
+    try:
+        return int(result) if result is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def cache_lrange(key: str, start: int, stop: int) -> List[str]:
+    result = _command(["LRANGE", _KEY_PREFIX + key, str(int(start)), str(int(stop))])
+    return [v for v in result if isinstance(v, str)] if isinstance(result, list) else []
+
+
+def cache_ltrim(key: str, start: int, stop: int) -> bool:
+    result = _command(["LTRIM", _KEY_PREFIX + key, str(int(start)), str(int(stop))])
+    return result == "OK"
+
+
+def cache_lrem(key: str, count: int, value: str) -> Optional[int]:
+    result = _command(["LREM", _KEY_PREFIX + key, str(int(count)), value])
+    try:
+        return int(result) if result is not None else None
+    except (TypeError, ValueError):
+        return None

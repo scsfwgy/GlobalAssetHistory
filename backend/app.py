@@ -9,6 +9,7 @@ from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
 from routes.price_change import price_change_bp
+from routes.wishes import wishes_bp
 from service.price_change import cache_store
 
 app = Flask(__name__, static_folder=None)
@@ -16,6 +17,7 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 
 app.register_blueprint(price_change_bp)
+app.register_blueprint(wishes_bp)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
