@@ -226,10 +226,11 @@
         }
 
         var preCrashClose = chartData.pre_crash_close;
-        var W = 700, H = 300;
-        var PAD = { top: 24, right: 60, bottom: 48, left: 64 };
+        var W = 700, H = 320;
+        var PAD = { top: 24, right: 60, bottom: 66, left: 64 };
         var cw = W - PAD.left - PAD.right;
         var ch = H - PAD.top - PAD.bottom;
+        var plotBottom = H - PAD.bottom;
 
         // Use candlesticks when the backend provided OHLC AND the window is
         // small enough for candles to stay readable; otherwise fall back to a
@@ -253,8 +254,18 @@
         var yMax = maxVal + range * 0.08;
         var yRange = yMax - yMin;
 
-        // Coordinate helpers — x maps to trading-day index
-        var xPos = function (i) { return PAD.left + (i / (prices.length - 1)) * cw; };
+        // ── Horizontal layout ──
+        // Cap the per-point slot width so that a few data points pack to the
+        // LEFT instead of stretching across the full width (which looks sparse
+        // and ugly). The SVG viewBox is then trimmed to the actual data width so
+        // there is no dead space on the right.
+        var MAX_SLOT = 24;
+        var slot = Math.min(MAX_SLOT, cw / prices.length);
+        var plotRight = PAD.left + slot * prices.length;
+        var chartW = Math.min(W, plotRight + PAD.right);
+
+        // Coordinate helpers — each point sits at the center of its slot.
+        var xPos = function (i) { return PAD.left + (i + 0.5) * slot; };
         var yPos = function (v) { return PAD.top + ch - ((v - yMin) / yRange) * ch; };
 
         // Identify key indices in the price array
@@ -271,7 +282,7 @@
         for (var i = 0; i <= yTicks; i++) {
             var v = yMin + (yRange * i) / yTicks;
             var y = yPos(v);
-            yGrid += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="var(--apple-divider)" stroke-width="1"/>';
+            yGrid += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + plotRight + '" y2="' + y + '" stroke="var(--apple-divider)" stroke-width="1"/>';
             yGrid += '<text x="' + (PAD.left - 8) + '" y="' + (y + 4) + '" text-anchor="end" fill="var(--apple-text-tertiary)" font-size="11">' + v.toFixed(2) + '</text>';
         }
 
@@ -279,15 +290,14 @@
         var refLine = "";
         if (preCrashClose != null) {
             var refY = yPos(preCrashClose);
-            refLine = '<line x1="' + PAD.left + '" y1="' + refY + '" x2="' + (W - PAD.right) + '" y2="' + refY + '" stroke="var(--apple-text-tertiary)" stroke-width="1" stroke-dasharray="6,4" opacity="0.5"/>';
-            refLine += '<text x="' + (W - PAD.right + 6) + '" y="' + (refY + 4) + '" fill="var(--apple-text-tertiary)" font-size="10">暴跌前 ' + preCrashClose.toFixed(2) + '</text>';
+            refLine = '<line x1="' + PAD.left + '" y1="' + refY + '" x2="' + plotRight + '" y2="' + refY + '" stroke="var(--apple-text-tertiary)" stroke-width="1" stroke-dasharray="6,4" opacity="0.5"/>';
+            refLine += '<text x="' + (plotRight + 6) + '" y="' + (refY + 4) + '" fill="var(--apple-text-tertiary)" font-size="10">暴跌前 ' + preCrashClose.toFixed(2) + '</text>';
         }
 
         // ── Price geometry: candlesticks (with OHLC) or a close line ──
         var seriesSvg = "";
         if (useCandles) {
-            // Candle width derived from slot size; leave a gap between candles.
-            var slot = cw / prices.length;
+            // Candle width derived from the (capped) slot size; gap between candles.
             var bodyW = Math.max(2, Math.min(14, slot * 0.62));
             prices.forEach(function (p, i) {
                 var cx = xPos(i);
@@ -319,22 +329,40 @@
             });
         }
 
-        // ── Key event markers (vertical) ──
-        var markers = "";
-        function addMarker(idx, color, label, price) {
-            if (idx < 0) return;
-            var cx = xPos(idx);
-            markers += '<line x1="' + cx + '" y1="' + PAD.top + '" x2="' + cx + '" y2="' + (H - PAD.bottom) + '" stroke="' + color + '" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>';
-            var cy = yPos(price);
-            // Label below axis
-            var labelY = H - PAD.bottom + 16;
-            markers += '<text x="' + cx + '" y="' + labelY + '" text-anchor="middle" fill="' + color + '" font-size="10">' + label + '</text>';
-        }
-        if (crashIdx >= 0) addMarker(crashIdx, CHART_COLORS.crashDot, "暴跌日 " + prices[crashIdx].date, prices[crashIdx].close);
-        if (bottomIdx >= 0 && bottomIdx !== crashIdx) addMarker(bottomIdx, CHART_COLORS.bottom, "触底 " + prices[bottomIdx].date, prices[bottomIdx].close);
-        if (recoveryIdx >= 0) addMarker(recoveryIdx, CHART_COLORS.recovery, "恢复 " + prices[recoveryIdx].date, prices[recoveryIdx].close);
+        // ── Key event markers (vertical lines + staggered labels) ──
+        // When two events are close together their labels would collide, so we
+        // assign each label to the first row where it doesn't overlap the one
+        // before it, and draw the guide line down to its own label row.
+        var markerDefs = [];
+        if (crashIdx >= 0) markerDefs.push({ idx: crashIdx, color: CHART_COLORS.crashDot, label: "暴跌日 " + prices[crashIdx].date });
+        if (bottomIdx >= 0 && bottomIdx !== crashIdx) markerDefs.push({ idx: bottomIdx, color: CHART_COLORS.bottom, label: "触底 " + prices[bottomIdx].date });
+        if (recoveryIdx >= 0 && recoveryIdx !== crashIdx && recoveryIdx !== bottomIdx) markerDefs.push({ idx: recoveryIdx, color: CHART_COLORS.recovery, label: "恢复 " + prices[recoveryIdx].date });
+        markerDefs.sort(function (a, b) { return a.idx - b.idx; });
 
-        // ── X-axis labels ──
+        // Rough label-width estimate (CJK glyphs are ~10px, ASCII ~5.5px at 10px font).
+        function estLabelW(text) {
+            var w = 0;
+            for (var k = 0; k < text.length; k++) w += text.charCodeAt(k) > 255 ? 10 : 5.5;
+            return w;
+        }
+
+        var markers = "";
+        var markerRowH = 13;
+        var markerBaseY = plotBottom + 28;
+        var rowRightEdge = [];  // furthest right edge used on each row so far
+        markerDefs.forEach(function (m) {
+            var cx = xPos(m.idx);
+            var halfW = estLabelW(m.label) / 2;
+            var left = cx - halfW;
+            var row = 0;
+            while (row < rowRightEdge.length && left < rowRightEdge[row] + 4) row++;
+            rowRightEdge[row] = cx + halfW;
+            var labelY = markerBaseY + row * markerRowH;
+            markers += '<line x1="' + cx + '" y1="' + PAD.top + '" x2="' + cx + '" y2="' + (labelY - 9) + '" stroke="' + m.color + '" stroke-width="1" stroke-dasharray="3,3" opacity="0.45"/>';
+            markers += '<text x="' + cx + '" y="' + labelY + '" text-anchor="middle" fill="' + m.color + '" font-size="10">' + m.label + '</text>';
+        });
+
+        // ── X-axis labels (trading-day index) ──
         var xLabels = "";
         var labelInterval = Math.max(1, Math.floor(prices.length / 10));
         prices.forEach(function (p, i) {
@@ -342,7 +370,7 @@
                 var label = "D" + (i - 1);  // Day 0 = crash day (index 1), Day -1 = pre-crash (index 0)
                 if (i === 0) label = "暴跌前";
                 var cx = xPos(i);
-                xLabels += '<text x="' + cx + '" y="' + (H - PAD.bottom + 34) + '" text-anchor="middle" fill="var(--apple-text-tertiary)" font-size="10">' + label + '</text>';
+                xLabels += '<text x="' + cx + '" y="' + (plotBottom + 14) + '" text-anchor="middle" fill="var(--apple-text-tertiary)" font-size="10">' + label + '</text>';
             }
         });
 
@@ -359,12 +387,16 @@
                 var chg = (p.close / prices[i - 1].close - 1) * 100;
                 attrs += ' data-chg="' + chg.toFixed(2) + '"';
             }
-            tooltipRects += '<rect x="' + (cx - cw / prices.length / 2) + '" y="' + PAD.top + '" width="' + (cw / prices.length) + '" height="' + ch + '" fill="transparent"' + attrs + '/>';
+            tooltipRects += '<rect x="' + (cx - slot / 2) + '" y="' + PAD.top + '" width="' + slot + '" height="' + ch + '" fill="transparent"' + attrs + '/>';
         });
 
         // ── Assemble SVG ──
-        var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;font-family:-apple-system,SF Pro Text,Helvetica,Arial,sans-serif;">' +
-            '<rect width="' + W + '" height="' + H + '" fill="transparent"/>' +
+        // The viewBox is trimmed to the data width and the rendered width scaled
+        // proportionally, so sparse data shrinks the chart and packs it to the
+        // left (the container is a block element) instead of stretching across.
+        var widthPct = (chartW / W) * 100;
+        var svg = '<svg viewBox="0 0 ' + chartW + ' ' + H + '" style="width:' + widthPct.toFixed(2) + '%;height:auto;display:block;font-family:-apple-system,SF Pro Text,Helvetica,Arial,sans-serif;">' +
+            '<rect width="' + chartW + '" height="' + H + '" fill="transparent"/>' +
             yGrid +
             refLine +
             seriesSvg +
@@ -410,11 +442,15 @@
                 tooltipEl.style.display = "block";
             });
             rect.addEventListener("mousemove", function (e) {
+                // Position the tooltip in physical pixels relative to the
+                // container (which is position:relative). The SVG no longer
+                // fills the container width, so scaling by viewBox units would
+                // be wrong — use the cursor's pixel offset directly.
                 var box = container.getBoundingClientRect();
-                var svgW = box.width;
-                var scale = svgW / W;
-                var relX = (e.clientX - box.left) / scale;
-                tooltipEl.style.left = Math.min(relX + 12, cw - 140) + "px";
+                var relX = e.clientX - box.left;
+                var tooltipW = 150;
+                var left = Math.max(0, Math.min(relX + 12, box.width - tooltipW));
+                tooltipEl.style.left = left + "px";
                 tooltipEl.style.top = "8px";
             });
             rect.addEventListener("mouseleave", function () {
