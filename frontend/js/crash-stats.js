@@ -28,9 +28,9 @@
     /* ── Init ── */
     function init() {
         var now = new Date();
-        var fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+        var defaultStart = new Date(2020, 0, 1); // 2020-01-01
         if (endInput) endInput.value = now.toISOString().slice(0, 10);
-        if (startInput) startInput.value = fiveYearsAgo.toISOString().slice(0, 10);
+        if (startInput) startInput.value = defaultStart.toISOString().slice(0, 10);
     }
 
     /* ── Run query ── */
