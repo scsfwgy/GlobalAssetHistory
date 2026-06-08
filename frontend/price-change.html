@@ -1018,7 +1018,27 @@
     </main>
 
     <script src="js/api.js"></script>
-    <script>fetch('/api/visits').then(r=>r.json()).then(d=>{document.getElementById('visitBadge').textContent='访问次数：'+d.count}).catch(()=>{})</script>
+    <script>
+      // Compact count formatting: 1234 -> 1.2K, 1500000 -> 1.5M, etc.
+      // Truncate (floor) the decimal so we never overstate the real count.
+      function formatVisitCount(n) {
+        if (!Number.isFinite(n)) return '0';
+        var units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
+        for (var i = 0; i < units.length; i++) {
+          if (n >= units[i][0]) {
+            var num = Math.floor((n / units[i][0]) * 10) / 10;
+            return num.toFixed(1).replace(/\.0$/, '') + units[i][1];
+          }
+        }
+        return String(n);
+      }
+      fetch('/api/visits')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          document.getElementById('visitBadge').textContent = '访问次数：' + formatVisitCount(d.count);
+        })
+        .catch(function () {});
+    </script>
     <script src="js/price-change.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/drilldown.js"></script>
