@@ -142,6 +142,8 @@
             color: var(--apple-text-secondary);
         }
 
+        .status-text:hover { text-decoration: underline; }
+
         .main {
             padding: 32px 24px;
             max-width: 1200px;

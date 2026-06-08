@@ -70,6 +70,10 @@ const BACKTEST_DEFAULT_SAMPLE = 120;
 function setConnected(ok) {
   statusDot.className = "status-dot" + (ok ? " connected" : "");
   statusText.textContent = ok ? "已连接" : "未连接";
+  statusText.style.cursor = ok ? "pointer" : "default";
+  statusText.style.color = ok ? "var(--apple-blue)" : "";
+  statusText.title = ok ? "查看系统健康度" : "";
+  statusText.onclick = ok ? function () { location.href = "/health.html"; } : null;
 }
 
 // ─── Error / Loading ───

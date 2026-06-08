@@ -5,12 +5,12 @@ import os
 import threading
 from pathlib import Path
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from routes.price_change import price_change_bp
 from routes.wishes import wishes_bp
-from service.price_change import cache_store
+from service.price_change import cache_store, diagnostics
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -49,6 +49,14 @@ def _write_counter(count: int) -> None:
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/diag")
+def diag():
+    """Live reachability of upstream data sources + Redis. Read-only; results
+    are memoised for ~20s. Pass ?fresh=1 to force a fresh probe."""
+    fresh = request.args.get("fresh") in ("1", "true", "yes")
+    return jsonify(diagnostics.run_diagnostics(fresh=fresh))
 
 
 @app.route("/api/visits")

@@ -31,6 +31,12 @@ def is_enabled() -> bool:
     return bool(_BASE_URL and _TOKEN)
 
 
+def ping() -> bool:
+    """Round-trip PING to confirm the cache is actually reachable (not merely
+    configured). Returns False when disabled or on any error."""
+    return _command(["PING"]) == "PONG"
+
+
 def _session() -> requests.Session:
     s = getattr(_local, "session", None)
     if s is None:

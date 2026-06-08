@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统健康度 — GlobalAssetHistory</title>
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        .hd-main { padding: 32px 24px; max-width: 860px; margin: 0 auto; }
+        .hd-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+        .hd-btn {
+            padding: 8px 16px;
+            background: var(--apple-blue);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .hd-btn:hover { opacity: 0.85; }
+        .hd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .hd-meta { font-size: 12px; color: var(--apple-text-tertiary); }
+        .hd-back { color: var(--apple-text-secondary); text-decoration: none; font-size: 13px; }
+        .hd-back:hover { color: var(--apple-text-primary); }
+        .hd-card {
+            background: var(--apple-surface-1);
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            box-shadow: var(--apple-card-shadow);
+        }
+        .hd-card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--apple-text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 14px;
+        }
+        .hd-asset-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .hd-asset {
+            text-align: center;
+            padding: 14px 8px;
+            background: var(--apple-surface-2);
+            border-radius: 10px;
+        }
+        .hd-asset-label { font-size: 12px; color: var(--apple-text-secondary); margin-bottom: 8px; }
+        .hd-asset-state { font-size: 15px; font-weight: 600; }
+
+        .hd-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--apple-divider);
+        }
+        .hd-row:last-child { border-bottom: none; }
+        .hd-row-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .hd-row-name { font-size: 14px; color: var(--apple-text-primary); font-weight: 500; }
+        .hd-row-tag { font-size: 11px; color: var(--apple-text-tertiary); }
+        .hd-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .hd-latency { font-size: 12px; color: var(--apple-text-tertiary); font-variant-numeric: tabular-nums; }
+        .hd-err { font-size: 11px; color: var(--data-negative); max-width: 320px; word-break: break-word; }
+
+        .hd-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .hd-badge.ok { background: rgba(48, 209, 88, 0.15); color: var(--data-positive); }
+        .hd-badge.bad { background: rgba(255, 69, 58, 0.15); color: var(--data-negative); }
+        .hd-badge.warn { background: rgba(255, 159, 10, 0.15); color: #ff9f0a; }
+
+        .hd-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .hd-dot.ok { background: #30d158; }
+        .hd-dot.bad { background: #ff453a; }
+
+        .hd-loading { display: flex; align-items: center; gap: 10px; color: var(--apple-text-secondary); font-size: 13px; padding: 40px 0; }
+        .hd-error-box { padding: 14px 16px; background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.3); border-radius: 8px; color: var(--data-negative); font-size: 13px; }
+
+        @media (max-width: 600px) {
+            .hd-asset-grid { grid-template-columns: 1fr; }
+            .hd-err { max-width: 200px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo"><div class="logo-text"><h1>系统健康度</h1></div></div>
+        </div>
+        <div class="status">
+            <a class="hd-back" href="/">&larr; 返回首页</a>
+        </div>
+    </header>
+
+    <main class="hd-main">
+        <div class="hd-toolbar">
+            <button class="hd-btn" id="hdRefresh">重新检测</button>
+            <span class="hd-meta" id="hdMeta"></span>
+        </div>
+        <div id="hdLoading" class="hd-loading">
+            <div class="spinner"></div><span>正在探测各数据源...</span>
+        </div>
+        <div id="hdError" class="hd-error-box" style="display:none;"></div>
+        <div id="hdContent" style="display:none;"></div>
+    </main>
+
+    <script>
+    // HD_JS
+    (function () {
+        var ASSET_LABELS = { stock: "美股", crypto: "数字货币", cn_stock: "A股" };
+        var SOURCE_LABELS = {
+            yahoo: "Yahoo Finance", binance: "Binance", okx: "OKX",
+            coingecko: "CoinGecko", eastmoney: "东方财富"
+        };
+        var $ = function (id) { return document.getElementById(id); };
+
+        function esc(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        function badge(ok, txt) {
+            return '<span class="hd-badge ' + (ok ? "ok" : "bad") + '">' + txt + '</span>';
+        }
+
+        function renderRedis(redis) {
+            redis = redis || {};
+            var reachable = !!redis.reachable;
+            var state;
+            if (!redis.configured) {
+                state = '<span class="hd-badge warn">未配置</span>';
+            } else {
+                state = badge(reachable, reachable ? "已连接" : "不可达");
+            }
+            var hint = reachable ? "" :
+                '<div class="hd-err" style="margin-top:8px;">未连通时，心愿墙 / 访问计数 / 数据缓存会退化为单实例临时存储，线上可能丢数据。</div>';
+            return '<div class="hd-card"><div class="hd-card-title">共享缓存 (Redis)</div>' +
+                '<div class="hd-row" style="padding-top:0;border:none;">' +
+                '<div class="hd-row-left"><span class="hd-row-name">Upstash / Vercel KV</span></div>' +
+                '<div class="hd-row-right">' + state + '</div></div>' + hint + '</div>';
+        }
+
+        function renderAssets(assetOk) {
+            assetOk = assetOk || {};
+            var order = ["stock", "crypto", "cn_stock"];
+            var cells = order.map(function (k) {
+                var ok = !!assetOk[k];
+                return '<div class="hd-asset"><div class="hd-asset-label">' + ASSET_LABELS[k] + '</div>' +
+                    '<div class="hd-asset-state" style="color:' + (ok ? "var(--data-positive)" : "var(--data-negative)") + ';">' +
+                    (ok ? "可用" : "不可用") + '</div></div>';
+            }).join("");
+            return '<div class="hd-card"><div class="hd-card-title">各资产可用性（任一数据源通即为可用）</div>' +
+                '<div class="hd-asset-grid">' + cells + '</div></div>';
+        }
+
+        function renderSources(sources) {
+            sources = sources || [];
+            var rows = sources.map(function (s) {
+                var name = SOURCE_LABELS[s.name] || s.name;
+                var statusTxt = s.ok ? "正常" : (s.status ? ("HTTP " + s.status) : "失败");
+                var right = '<span class="hd-latency">' + (s.latency_ms != null ? s.latency_ms + "ms" : "—") + '</span>' +
+                    badge(s.ok, statusTxt);
+                var err = s.error ? '<div class="hd-err">' + esc(s.error) + '</div>' : "";
+                return '<div class="hd-row">' +
+                    '<div class="hd-row-left">' +
+                        '<span class="hd-dot ' + (s.ok ? "ok" : "bad") + '"></span>' +
+                        '<span class="hd-row-name">' + esc(name) + '</span>' +
+                        '<span class="hd-row-tag">' + (ASSET_LABELS[s.asset] || s.asset) + '</span>' +
+                    '</div>' +
+                    '<div class="hd-row-right">' + right + '</div>' +
+                    '</div>' + (err ? '<div style="padding-bottom:10px;">' + err + '</div>' : "");
+            }).join("");
+            return '<div class="hd-card"><div class="hd-card-title">数据源探测明细</div>' + rows + '</div>';
+        }
+
+        function render(data) {
+            $("hdContent").innerHTML =
+                renderRedis(data.redis) + renderAssets(data.asset_ok) + renderSources(data.sources);
+            $("hdContent").style.display = "block";
+            var when = data.checked_at ? new Date(data.checked_at * 1000).toLocaleString("zh-CN") : "";
+            $("hdMeta").textContent = "检测时间：" + when + (data.cached ? "（缓存，约20秒内）" : "");
+        }
+
+        function load(fresh) {
+            var btn = $("hdRefresh");
+            btn.disabled = true;
+            $("hdLoading").style.display = "flex";
+            $("hdError").style.display = "none";
+            $("hdContent").style.display = "none";
+            fetch("/api/diag" + (fresh ? "?fresh=1" : ""))
+                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(function (d) { render(d); })
+                .catch(function (e) {
+                    $("hdError").textContent = "加载失败：" + e.message;
+                    $("hdError").style.display = "block";
+                })
+                .finally(function () {
+                    $("hdLoading").style.display = "none";
+                    btn.disabled = false;
+                });
+        }
+
+        $("hdRefresh").addEventListener("click", function () { load(true); });
+        load(false);
+    })();
+
+    </script>
+</body>
+</html>
+
