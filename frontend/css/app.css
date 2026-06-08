@@ -84,6 +84,14 @@
             margin-top: 4px;
         }
 
+        .logo-text p a {
+            color: var(--apple-blue);
+            text-decoration: none;
+            transition: opacity 0.15s;
+        }
+
+        .logo-text p a:hover { opacity: 0.8; text-decoration: underline; }
+
         .visit-badge {
             font-size: 13px;
             color: var(--apple-text-secondary);
