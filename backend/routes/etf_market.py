@@ -10,13 +10,6 @@ from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
 
-# East Money fund NAV — tries to import akshare, falls back gracefully
-try:
-    import akshare as _ak
-    _HAS_AKSHARE = True
-except ImportError:
-    _HAS_AKSHARE = False
-
 etf_market_bp = Blueprint("etf_market", __name__, url_prefix="/api/etf-market")
 
 _TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
@@ -318,24 +311,60 @@ def _fetch_live_premium(symbol: str) -> Optional[float]:
 
 
 def _fetch_etf_nav(symbol: str, start_date: str, end_date: str) -> dict:
-    """Fetch ETF NAV history from East Money fund API. Returns {date_str: nav}."""
-    if not _HAS_AKSHARE:
-        return {}
-    try:
-        s = start_date.replace("-", "")
-        e = end_date.replace("-", "")
-        df = _ak.fund_etf_fund_info_em(fund=symbol, start_date=s, end_date=e)
-        if df is None or df.empty:
-            return {}
-        nav_map = {}
-        for _, row in df.iterrows():
-            dt = row["净值日期"]
-            if hasattr(dt, "strftime"):
-                dt = dt.strftime("%Y-%m-%d")
-            else:
-                dt = str(dt)[:10]
-            nav_map[dt] = float(row["单位净值"])
-        return nav_map
-    except Exception as e:
-        logger.warning("NAV fetch failed for %s: %s", symbol, e)
-        return {}
+    """Fetch ETF NAV history from East Money fund API. Returns {date_str: nav}.
+
+    Uses api.fund.eastmoney.com (different from push2his.eastmoney.com) which
+    may be reachable from US servers. Falls back gracefully on any error.
+    """
+    import time as _time
+
+    nav_map = {}
+    page_size = 50
+    max_pages = 20  # safety: ~1000 data points max
+
+    s = start_date.replace("-", "-")  # keep YYYY-MM-DD
+    e = end_date.replace("-", "-")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": f"https://fundf10.eastmoney.com/jjjz_{symbol}.html",
+    }
+
+    for page in range(1, max_pages + 1):
+        try:
+            resp = requests.get(
+                "https://api.fund.eastmoney.com/f10/lsjz",
+                params={
+                    "fundCode": symbol,
+                    "pageIndex": str(page),
+                    "pageSize": str(page_size),
+                    "startDate": s,
+                    "endDate": e,
+                    "_": str(int(_time.time() * 1000)),
+                },
+                headers=headers,
+                timeout=_REQUEST_TIMEOUT,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+        except Exception as exc:
+            logger.warning("NAV API unreachable for %s: %s", symbol, exc)
+            break
+
+        items = body.get("Data", {}).get("LSJZList", [])
+        if not items:
+            break
+
+        for item in items:
+            dt = item.get("FSRQ", "")  # 净值日期
+            nav = item.get("DWJZ")     # 单位净值
+            if dt and nav:
+                try:
+                    nav_map[dt] = float(nav)
+                except (ValueError, TypeError):
+                    pass
+
+        if len(items) < page_size:
+            break
+
+    return nav_map
