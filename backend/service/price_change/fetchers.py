@@ -440,7 +440,7 @@ def _fetch_daily_series_crypto(symbol: str) -> PriceSeries:
 
 
 # ---------------------------------------------------------------------------
-# China A-share fetcher — East Money API (free, no auth)
+# China A-share fetchers — Tencent Finance (primary) + East Money (fallback)
 # ---------------------------------------------------------------------------
 
 _EAST_MONEY_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
@@ -469,6 +469,27 @@ def _cn_stock_secid(code: str) -> str:
         return f"1.{s}"
     # Default: fall back to index-style mapping
     return _cn_secid(s)
+
+
+# Tencent Finance API
+_TENCENT_KLINE_URL = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get"
+
+
+def _cn_tencent_symbol(symbol: str) -> str:
+    """Map A-share code to Tencent Finance symbol format.
+
+    SSE (Shanghai): sh prefix — 000xxx, 600xxx, 601xxx, 603xxx, 605xxx, 688xxx
+    SZSE (Shenzhen): sz prefix — 002xxx, 300xxx, 399xxx
+    """
+    s = symbol.strip().upper()
+    if s[:3] in ("000", "600", "601", "603", "605", "688"):
+        return f"sh{s}"
+    if s[:3] in ("002", "300", "301", "399"):
+        return f"sz{s}"
+    # Default: guess by first digit — 0/6 → sh, 2/3 → sz
+    if s.startswith(("0", "6")):
+        return f"sh{s}"
+    return f"sz{s}"
 
 
 def _parse_east_money_klines(data: List[str]) -> tuple:
@@ -539,15 +560,129 @@ _EAST_MONEY_PARAMS = {
 
 
 def _fetch_cn_stock(symbol: str) -> Dict[str, float]:
-    """Fetch yearly returns for A-share indices via East Money API."""
+    """Fetch yearly returns for A-share indices."""
     series = _fetch_daily_series_cn_stock(symbol)
     if series.error:
         return {}
     return _compute_yearly_returns(series.timestamps, series.closes)
 
 
+def _fetch_daily_series_cn_stock_tencent(symbol: str) -> PriceSeries:
+    """Fetch daily OHLCV data for A-share indices via Tencent Finance API.
+
+    Paginates backwards: each request returns up to 640 bars ending at
+    end_date.  Uses the earliest returned date as the next end_date until
+    fewer than 640 bars come back (reached the beginning of data).
+    """
+    tencent_sym = _cn_tencent_symbol(symbol)
+    all_rows: List[list] = []
+    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    max_pages = 100  # safety valve for infinite loop
+
+    for _ in range(max_pages):
+        try:
+            resp = _session.get(
+                _TENCENT_KLINE_URL,
+                params={
+                    "param": f"{tencent_sym},day,,{end_date},640,qfq",
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+        except Exception as e:
+            logger.error("Tencent fetch failed for %s (end=%s): %s", tencent_sym, end_date, e)
+            return empty_series("tencent", str(e))
+
+        if resp.status_code != 200:
+            logger.error("Tencent returned HTTP %d for %s", resp.status_code, tencent_sym)
+            return empty_series("tencent", f"HTTP {resp.status_code}")
+
+        try:
+            body = resp.json()
+        except Exception as e:
+            logger.error("Tencent JSON parse failed for %s: %s", tencent_sym, e)
+            return empty_series("tencent", f"JSON parse error: {e}")
+
+        if body.get("code") != 0:
+            break
+
+        data = body.get("data", {})
+        stock_data = data.get(tencent_sym, {})
+        days = stock_data.get("day", [])
+        if not days:
+            break
+
+        all_rows.extend(days)
+        if len(days) < 640:
+            break  # reached beginning of data
+
+        # Next page: fetch bars ending just before the oldest bar we have
+        end_date = days[0][0]  # oldest date in this page
+        time.sleep(0.05)
+
+    if not all_rows:
+        return empty_series("tencent", "empty data")
+
+    # Tencent kline format: [date, open, close, high, low, volume, {}, change%, amount, 0, 0]
+    # Note: close comes before high in Tencent's format
+    # Data arrives newest-first across pages, but each page is oldest→newest.
+    # Collect then deduplicate by date and sort.
+    seen_dates: set = set()
+    rows: list = []
+    for row in all_rows:
+        date_str = row[0]
+        if date_str in seen_dates:
+            continue
+        seen_dates.add(date_str)
+        rows.append(row)
+
+    timestamps = []
+    opens = []
+    highs = []
+    lows = []
+    closes = []
+    for row in rows:
+        try:
+            dt = datetime.strptime(row[0], "%Y-%m-%d")
+            ts = int(dt.replace(tzinfo=timezone.utc).timestamp())
+            timestamps.append(ts)
+            opens.append(float(row[1]))
+            closes.append(float(row[2]))
+            highs.append(float(row[3]))
+            lows.append(float(row[4]))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    if not timestamps:
+        return empty_series("tencent", "parse failed")
+
+    # Sort oldest-first
+    combined = sorted(zip(timestamps, opens, highs, lows, closes))
+    timestamps = [t for t, _, _, _, _ in combined]
+    opens = [o for _, o, _, _, _ in combined]
+    highs = [h for _, _, h, _, _ in combined]
+    lows = [l for _, _, _, l, _ in combined]
+    closes = [c for _, _, _, _, c in combined]
+
+    return series_from_points(timestamps, closes, "tencent", opens=opens, highs=highs, lows=lows)
+
+
 def _fetch_daily_series_cn_stock(symbol: str) -> PriceSeries:
-    """Fetch daily close data for A-share via East Money."""
+    """Fetch A-share daily data via Tencent Finance → East Money."""
+    errors = []
+    for fetcher in (
+        _fetch_daily_series_cn_stock_tencent,
+        _fetch_daily_series_cn_stock_eastmoney,
+    ):
+        series = fetcher(symbol)
+        if not series.error:
+            return series
+        errors.append(f"{series.source}: {series.error}")
+    logger.warning("All CN stock data sources failed for %s", symbol)
+    return empty_series("cn_stock", "; ".join(errors))
+
+
+def _fetch_daily_series_cn_stock_eastmoney(symbol: str) -> PriceSeries:
+    """Fetch daily OHLCV data for A-share indices via East Money API."""
     secid = _cn_secid(symbol)
     try:
         resp = _session.get(
@@ -573,7 +708,7 @@ def _fetch_daily_series_cn_stock(symbol: str) -> PriceSeries:
 
 
 def _fetch_daily_closes_cn_stock(symbol: str) -> tuple:
-    """Fetch daily close data for A-share via East Money. Returns (timestamps, closes)."""
+    """Fetch daily close data for A-share. Returns (timestamps, closes)."""
     series = _fetch_daily_series_cn_stock(symbol)
     return series.timestamps, series.closes
 
