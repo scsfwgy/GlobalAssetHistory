@@ -468,7 +468,7 @@
             label = "涨跌幅"; unit = "%"; color = "#5ac8fa"; symmetric = true;
         } else if (chartType === "premium") {
             for (var i = 0; i < n; i++) values.push(bars[i].premium_pct);
-            label = "溢价率"; unit = "%"; color = "#ff9f0a"; symmetric = true;
+            label = "溢价率"; unit = "%"; color = "#ff9f0a"; symmetric = false;
         } else if (chartType === "amplitude") {
             for (var i = 0; i < n; i++) values.push(bars[i].amplitude_pct);
             label = "振幅"; unit = "%"; color = "#bf5af2";
