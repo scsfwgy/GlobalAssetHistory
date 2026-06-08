@@ -68,24 +68,38 @@ function updateBacktestFrequencyUI() {
 }
 
 function populateBacktestOptions() {
-  if (!_lastYearlyData) return;
-  const { years, data } = _lastYearlyData;
   if (!btAddSelect) return;
 
-  const eligibleSymbols = symbols
-    .filter((s) => data[s.symbol] && Object.keys(data[s.symbol]).length > 0)
-    .map((s) => {
-      const label = s.name ? `${s.symbol}(${s.name})` : s.symbol;
-      return `<option value="${s.symbol}">${label}</option>`;
-    })
-    .join("");
-  btAddSelect.innerHTML = eligibleSymbols || '<option value="">—</option>';
+  // The backtest backend fetches its own daily series, so it does NOT require
+  // the yearly table to have been queried. Prefer symbols that already have
+  // yearly data (avoids offering ones that failed to load), but fall back to
+  // all added symbols when no yearly query has run yet.
+  const data = _lastYearlyData ? _lastYearlyData.data : null;
+  const prev = btAddSelect.value;
+  const eligible = symbols.filter(
+    (s) => !data || (data[s.symbol] && Object.keys(data[s.symbol]).length > 0)
+  );
 
-  const sortedYears = [...years].map(Number).sort((a, b) => a - b);
-  const firstYear = sortedYears[0];
-  const lastYear = sortedYears[sortedYears.length - 1];
-  if (firstYear && btStartDate && !btStartDate.value) btStartDate.value = `${firstYear}-01-01`;
-  if (lastYear && btEndDate && !btEndDate.value) btEndDate.value = `${lastYear}-12-31`;
+  btAddSelect.innerHTML = eligible.length
+    ? eligible
+        .map((s) => {
+          const label = s.name ? `${s.symbol}(${s.name})` : s.symbol;
+          return `<option value="${s.symbol}">${label}</option>`;
+        })
+        .join("")
+    : '<option value="">请先在「历年涨跌幅」添加标的</option>';
+
+  // Keep the previous selection if it's still available.
+  if (prev && eligible.some((s) => s.symbol === prev)) btAddSelect.value = prev;
+
+  // Default the date range from yearly data when available.
+  if (_lastYearlyData && _lastYearlyData.years) {
+    const sortedYears = [..._lastYearlyData.years].map(Number).sort((a, b) => a - b);
+    const firstYear = sortedYears[0];
+    const lastYear = sortedYears[sortedYears.length - 1];
+    if (firstYear && btStartDate && !btStartDate.value) btStartDate.value = `${firstYear}-01-01`;
+    if (lastYear && btEndDate && !btEndDate.value) btEndDate.value = `${lastYear}-12-31`;
+  }
 }
 
 async function runBacktest() {

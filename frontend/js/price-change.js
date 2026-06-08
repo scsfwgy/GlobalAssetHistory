@@ -591,6 +591,15 @@ async function init() {
     btResult.style.display = "none";
   });
 
+  // Repopulate the backtest symbol dropdown each time the 回测 tab opens, since
+  // symbols may have been added/removed in the 历年涨跌幅 tab and the backtest
+  // no longer depends on a prior yearly query.
+  document.querySelectorAll('.tab-btn[data-tab="backtest"]').forEach((btn) => {
+    btn.addEventListener("click", () => {
+      try { populateBacktestOptions(); } catch (e) { console.error("bt opt fail:", e); }
+    });
+  });
+
   // Populate year options and set default
   populateYearOptions();
 
