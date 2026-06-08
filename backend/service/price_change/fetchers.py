@@ -478,17 +478,18 @@ _TENCENT_KLINE_URL = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqk
 def _cn_tencent_symbol(symbol: str) -> str:
     """Map A-share code to Tencent Finance symbol format.
 
-    SSE (Shanghai): sh prefix — 000xxx, 600xxx, 601xxx, 603xxx, 605xxx, 688xxx
-    SZSE (Shenzhen): sz prefix — 002xxx, 300xxx, 399xxx
+    SSE (Shanghai): sh prefix — 000xxx indices, 5xxxxx ETFs, 6xxxxx main board, 688xxx STAR
+    SZSE (Shenzhen): sz prefix — 002xxx, 300xxx, 301xxx, 399xxx, 1xxxxx ETFs
     """
     s = symbol.strip().upper()
     if s[:3] in ("000", "600", "601", "603", "605", "688"):
         return f"sh{s}"
     if s[:3] in ("002", "300", "301", "399"):
         return f"sz{s}"
-    # Default: guess by first digit — 0/6 → sh, 2/3 → sz
-    if s.startswith(("0", "6")):
+    # SSE: 5xx ETFs, 6xx, 9xx
+    if s.startswith(("5", "6", "9")):
         return f"sh{s}"
+    # SZSE: 0xx, 1xx, 2xx, 3xx
     return f"sz{s}"
 
 
@@ -590,7 +591,8 @@ def _fetch_daily_series_cn_stock_tencent(symbol: str) -> PriceSeries:
             )
         except Exception as e:
             logger.error("Tencent fetch failed for %s (end=%s): %s", tencent_sym, end_date, e)
-            return empty_series("tencent", str(e))
+            reason = "connection failed" if "Max retries" in str(e) else str(e)
+            return empty_series("tencent", reason[:80])
 
         if resp.status_code != 200:
             logger.error("Tencent returned HTTP %d for %s", resp.status_code, tencent_sym)
@@ -600,7 +602,7 @@ def _fetch_daily_series_cn_stock_tencent(symbol: str) -> PriceSeries:
             body = resp.json()
         except Exception as e:
             logger.error("Tencent JSON parse failed for %s: %s", tencent_sym, e)
-            return empty_series("tencent", f"JSON parse error: {e}")
+            return empty_series("tencent", "invalid JSON response")
 
         if body.get("code") != 0:
             break
@@ -694,7 +696,16 @@ def _fetch_daily_series_cn_stock_eastmoney(symbol: str) -> PriceSeries:
         body = resp.json()
     except Exception as e:
         logger.error("East Money daily fetch failed for %s: %s", symbol, e)
-        return empty_series("eastmoney", str(e))
+        # Extract a short, human-readable reason — full URL + proxy stack is noise
+        msg = str(e)
+        if "Max retries exceeded" in msg:
+            msg = "connection failed"
+        elif "Timeout" in msg or "timeout" in msg:
+            msg = "timeout"
+        elif len(msg) > 60:
+            # Take just the first sentence
+            msg = msg.split(":")[0] if ":" in msg else msg[:60]
+        return empty_series("eastmoney", msg)
 
     klines = body.get("data", {}).get("klines", [])
     if not klines:

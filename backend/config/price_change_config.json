@@ -109,6 +109,32 @@
         { "symbol": "000300", "type": "cn_stock", "name": "沪深300" },
         { "symbol": "399006", "type": "cn_stock", "name": "创业板指" }
       ]
+    },
+    "cn_etf_sp500": {
+      "label": "A股ETF-标普500",
+      "symbols": [
+        { "symbol": "513650", "type": "cn_stock", "name": "华夏标普500ETF" },
+        { "symbol": "159612", "type": "cn_stock", "name": "国泰标普500ETF" },
+        { "symbol": "159652", "type": "cn_stock", "name": "易方达标普500ETF" },
+        { "symbol": "513500", "type": "cn_stock", "name": "博时标普500ETF" },
+        { "symbol": "159401", "type": "cn_stock", "name": "摩根标普500" }
+      ]
+    },
+    "cn_etf_nasdaq100": {
+      "label": "A股ETF-纳指100",
+      "symbols": [
+        { "symbol": "513300", "type": "cn_stock", "name": "华夏纳指100ETF" },
+        { "symbol": "513110", "type": "cn_stock", "name": "华泰柏瑞纳指100ETF" },
+        { "symbol": "159655", "type": "cn_stock", "name": "华安纳指100ETF" },
+        { "symbol": "159660", "type": "cn_stock", "name": "博时纳指100ETF" },
+        { "symbol": "159632", "type": "cn_stock", "name": "易方达纳指100ETF" },
+        { "symbol": "159501", "type": "cn_stock", "name": "招商纳指100ETF" },
+        { "symbol": "159513", "type": "cn_stock", "name": "富国纳指100" },
+        { "symbol": "159696", "type": "cn_stock", "name": "摩根纳指100" },
+        { "symbol": "159529", "type": "cn_stock", "name": "汇添富纳斯达克ETF" },
+        { "symbol": "513100", "type": "cn_stock", "name": "国泰纳斯达克100ETF" },
+        { "symbol": "159941", "type": "cn_stock", "name": "广发纳指ETF" }
+      ]
     }
   },
   "color_range": {
