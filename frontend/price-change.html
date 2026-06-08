@@ -759,8 +759,8 @@
         <div class="header-left">
             <div class="logo">
                 <div class="logo-text">
-                    <h1>GlobalAssetHistory</h1>
-                    <p>价值投资，相信长期的力量。回测历史，知晓未来：<a href="https://qqq.jztzus.uk" target="_blank" rel="noopener noreferrer">https://qqq.jztzus.uk</a></p>
+                    <h1>GlobalAssetHistory <a href="https://qqq.jztzus.uk" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;">https://qqq.jztzus.uk</a></h1>
+                    <p>价值投资，相信长期的力量。回测历史，知晓未来。</p>
                 </div>
             </div>
         </div>
@@ -1042,10 +1042,12 @@
                 </div>
                 <div id="etfDetailStats" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--apple-text-secondary);"></div>
                 <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;" id="etfChartToggles">
-                    <span style="font-size:11px;color:var(--apple-text-tertiary);">显示:</span>
-                    <button class="transfer-tab active" data-etf-layer="candle">蜡烛图</button>
-                    <button class="transfer-tab active" data-etf-layer="change">涨跌幅</button>
-                    <button class="transfer-tab active" data-etf-layer="premium">溢价率</button>
+                    <span style="font-size:11px;color:var(--apple-text-tertiary);">指标:</span>
+                    <button class="transfer-tab active" data-etf-chart="candle">蜡烛图</button>
+                    <button class="transfer-tab" data-etf-chart="change">涨跌幅</button>
+                    <button class="transfer-tab" data-etf-chart="premium">溢价率</button>
+                    <button class="transfer-tab" data-etf-chart="amplitude">振幅</button>
+                    <button class="transfer-tab" data-etf-chart="amount">成交额</button>
                 </div>
                 <div id="etfChartContainer"></div>
             </div>

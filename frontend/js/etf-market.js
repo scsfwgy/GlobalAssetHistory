@@ -39,10 +39,10 @@
     var _expandedCode = null;
     var _lastChartData = null;
 
-    /* ── Chart layer visibility ── */
-    function isLayerOn(name) {
-        var btn = document.querySelector('#etfChartToggles [data-etf-layer="' + name + '"]');
-        return btn ? btn.classList.contains("active") : true;
+    /* ── Chart type selection (single-select) ── */
+    function activeChartType() {
+        var active = document.querySelector('#etfChartToggles .transfer-tab.active');
+        return active ? active.dataset.etfChart : "candle";
     }
 
     /* ── Chart constants ── */
@@ -53,6 +53,8 @@
         text: "rgba(255,255,255,0.6)",
         textDim: "rgba(255,255,255,0.35)",
         dim: "rgba(255,255,255,0.35)",
+        crosshair: "rgba(255,255,255,0.25)",
+        tooltipBg: "rgba(0,0,0,0.85)",
     };
 
     /* ── Init ── */
@@ -93,12 +95,13 @@
         var closeBtn = document.getElementById("etfDetailClose");
         if (closeBtn) closeBtn.addEventListener("click", function () { hideDetail(); });
 
-        // Chart layer toggles
+        // Chart type selector (single-select, radio style)
         document.querySelectorAll("#etfChartToggles .transfer-tab").forEach(function (btn) {
             btn.addEventListener("click", function (e) {
                 e.stopPropagation();
-                btn.classList.toggle("active");
-                if (_expandedCode) renderChartFromCache();
+                document.querySelectorAll("#etfChartToggles .transfer-tab").forEach(function (b) { b.classList.remove("active"); });
+                btn.classList.add("active");
+                if (_expandedCode) renderChart();
             });
         });
 
@@ -302,16 +305,13 @@
         return null;
     }
 
-    function renderChartFromCache() {
-        if (_lastChartData) renderChart();
-    }
-
-    /* ── SVG Candlestick + change% + premium chart ── */
+    /* ── SVG Chart — single selected type ── */
     function renderChart() {
         var bars = _lastChartData.bars;
         var hasPremium = _lastChartData.has_premium;
         if (!bars || !bars.length) return;
 
+        var chartType = activeChartType();
         var W = 900, H = 340;
         var PAD = { top: 20, right: 20, bottom: 36, left: 56 };
         var plotW = W - PAD.left - PAD.right;
@@ -319,148 +319,236 @@
         var n = bars.length;
         if (n < 1) return;
 
-        // Value range (include highs/lows for candles)
-        var minV = Infinity, maxV = -Infinity;
-        var minC = Infinity, maxC = -Infinity;
-        bars.forEach(function (b) {
-            if (b.low < minV) minV = b.low;
-            if (b.high > maxV) maxV = b.high;
-            if (b.change_pct < minC) minC = b.change_pct;
-            if (b.change_pct > maxC) maxC = b.change_pct;
-        });
-        var padV = (maxV - minV) * 0.05 || 1;
-        minV -= padV; maxV += padV;
-        var vRange = maxV - minV;
+        var xScale = function (i) { return PAD.left + (i / Math.max(n - 1, 1)) * plotW; };
 
-        // Change% range (secondary axis)
-        var padC = Math.max(Math.abs(minC), Math.abs(maxC)) * 0.2 || 1;
-        minC -= padC; maxC += padC;
-        var cPctMax = Math.max(Math.abs(minC), Math.abs(maxC));
+        var svg = buildChartBody(chartType, bars, hasPremium, W, H, PAD, plotW, plotH, n, xScale);
+        if (!svg) return;
 
-        var xScale = function (i) { return PAD.left + (i / (n - 1)) * plotW; };
-        var yScale = function (v) { return PAD.top + plotH - ((v - minV) / vRange) * plotH; };
+        // Crosshair + hover tooltip layer
+        var hoverId = "etfHover_" + chartType;
+        svg += '<line id="' + hoverId + '_line" x1="0" y1="0" x2="0" y2="' + H + '" stroke="' + CHART_COLORS.crosshair + '" stroke-width="1" stroke-dasharray="4,2" style="display:none;pointer-events:none"/>';
+        svg += '<rect id="' + hoverId + '_tip" x="0" y="0" width="160" height="1" rx="6" fill="' + CHART_COLORS.tooltipBg + '" style="display:none;pointer-events:none"/>';
+        svg += '<text id="' + hoverId + '_text" x="0" y="0" fill="#fff" font-size="11" style="display:none;pointer-events:none"/>';
 
-        // ── Build SVG ──
-        var svg = "";
-
-        // Background
-        svg += '<rect width="' + W + '" height="' + H + '" fill="transparent"/>';
-
-        // Grid lines + Y labels
-        var gridLines = 5;
-        for (var g = 0; g <= gridLines; g++) {
-            var val = minV + (vRange / gridLines) * g;
-            var y = yScale(val);
-            svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"/>';
-            svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + val.toFixed(2) + "</text>";
-        }
-
-        var showChange = isLayerOn("change");
-        var showCandle = isLayerOn("candle");
-        var showPremium = isLayerOn("premium");
-
-        // Candlesticks
-        if (showCandle) {
-        var slotW = Math.min(plotW / n, 10);
-        bars.forEach(function (b, i) {
-            var cx = xScale(i);
-            var isUp = b.close >= b.open;
-            var color = isUp ? CHART_COLORS.candleUp : CHART_COLORS.candleDown;
-            var yOpen = yScale(b.open);
-            var yClose = yScale(b.close);
-            var yHigh = yScale(b.high);
-            var yLow = yScale(b.low);
-
-            // Wick
-            svg += '<line x1="' + cx + '" y1="' + yHigh + '" x2="' + cx + '" y2="' + yLow + '" stroke="' + color + '" stroke-width="1"/>';
-            // Body
-            var bodyH = Math.abs(yClose - yOpen);
-            var bodyW = Math.max(slotW * 0.65, 1.5);
-            if (bodyH < 0.5) bodyH = 0.5; // Doji
-            var bodyTop = isUp ? yClose : yOpen;
-            svg += '<rect x="' + (cx - bodyW / 2) + '" y="' + bodyTop + '" width="' + bodyW + '" height="' + bodyH + '" fill="' + color + '" stroke="' + color + '" stroke-width="0.5"/>';
-        });
-        }
-
-        // Daily change% line (overlay on a right-side scale)
-
-        // --- Shared zero-reference line (used by both change% and premium) ---
-        var chY = function (cp) { return PAD.top + plotH / 2 - (cp / cPctMax) * (plotH / 2); };
-        var zeroY = chY(0);
-        var dimColor = "rgba(255,255,255,0.35)";
-
-        if ((showChange && cPctMax > 0) || showPremium) {
-            svg += '<line x1="' + PAD.left + '" y1="' + zeroY + '" x2="' + (W - PAD.right) + '" y2="' + zeroY + '" stroke="' + dimColor + '" stroke-width="0.5" stroke-dasharray="3,3"/>';
-        }
-
-        // --- Change% layer ---
-        if (showChange && bars.length > 1 && cPctMax > 0) {
-            svg += '<text x="' + (W - PAD.right + 4) + '" y="' + (PAD.top + 12) + '" fill="' + dimColor + '" font-size="9">' + "+" + cPctMax.toFixed(1) + "%" + "<" + "/text>";
-            svg += '<text x="' + (W - PAD.right + 4) + '" y="' + (zeroY + 4) + '" fill="' + dimColor + '" font-size="9">' + "0%" + "<" + "/text>";
-            svg += '<text x="' + (W - PAD.right + 4) + '" y="' + (H - PAD.bottom + 4) + '" fill="' + dimColor + '" font-size="9">' + "-" + cPctMax.toFixed(1) + "%" + "<" + "/text>";
-
-            var chPath = "";
-            bars.forEach(function (b, i) {
-                var y = chY(b.change_pct);
-                chPath += (i === 0 ? "M" : "L") + xScale(i).toFixed(1) + "," + y.toFixed(1) + " ";
-            });
-            svg += '<path d="' + chPath + '" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-        }
-
-        // --- Premium rate layer ---
-        if (showPremium && hasPremium) {
-            var premValues = bars.map(function (b) { return b.premium_pct; }).filter(function (v) { return v != null; });
-            if (premValues.length > 0) {
-                var maxPrem = Math.max.apply(null, premValues.map(Math.abs));
-                if (maxPrem === 0) maxPrem = 1;
-                var premY = function (p) { return zeroY - (p / maxPrem) * (plotH / 2); };
-
-                // Premium line
-                var premPath = "";
-                bars.forEach(function (b, i) {
-                    if (b.premium_pct == null) return;
-                    var y = premY(b.premium_pct);
-                    premPath += (premPath ? "L" : "M") + xScale(i).toFixed(1) + "," + y.toFixed(1) + " ";
-                });
-                if (premPath) {
-                    svg += '<path d="' + premPath + '" fill="none" stroke="#ff9f0a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>';
-                }
-
-                // Premium labels on far right
-                svg += '<text x="' + (W - PAD.right + 40) + '" y="' + (PAD.top + 12) + '" fill="#ff9f0a" font-size="9">+' + maxPrem.toFixed(1) + "%" + "<" + "/text>";
-                svg += '<text x="' + (W - PAD.right + 40) + '" y="' + (H - PAD.bottom + 4) + '" fill="#ff9f0a" font-size="9">-' + maxPrem.toFixed(1) + "%" + "<" + "/text>";
-            }
-        }
-
-        // X-axis date labels
-        var labelEvery = Math.max(1, Math.floor(n / 6));
-        bars.forEach(function (b, i) {
-            if (i % labelEvery !== 0 && i !== n - 1) return;
-            var cx = xScale(i);
-            var dateStr = b.date.slice(5); // MM-DD
-            svg += '<text x="' + cx + '" y="' + (H - PAD.bottom + 16) + '" fill="' + CHART_COLORS.textDim + '" font-size="9" text-anchor="middle">' + dateStr + "</text>";
-            svg += '<line x1="' + cx + '" y1="' + (H - PAD.bottom) + '" x2="' + cx + '" y2="' + (H - PAD.bottom + 5) + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5"/>';
-        });
-
-        // Legend — only show active layers
-        var lgX = PAD.left + 4;
-        if (showCandle) {
-            svg += '<rect x="' + lgX + '" y="' + (PAD.top + 2) + '" width="10" height="10" fill="' + CHART_COLORS.candleUp + '" rx="1"/>';
-            svg += '<text x="' + (lgX + 14) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">蜡烛图</text>';
-            lgX += 68;
-        }
-        if (showChange) {
-            svg += '<line x1="' + lgX + '" y1="' + (PAD.top + 7) + '" x2="' + (lgX + 20) + '" y2="' + (PAD.top + 7) + '" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>';
-            svg += '<text x="' + (lgX + 24) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">涨跌幅</text>';
-            lgX += 68;
-        }
-        if (showPremium && hasPremium) {
-            svg += '<line x1="' + lgX + '" y1="' + (PAD.top + 7) + '" x2="' + (lgX + 20) + '" y2="' + (PAD.top + 7) + '" stroke="#ff9f0a" stroke-width="1.8"/>';
-            svg += '<text x="' + (lgX + 24) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">溢价率</text>';
+        // Invisible hover zones (one rect per data point slot)
+        var slotW = plotW / Math.max(n - 1, 1);
+        for (var i = 0; i < n; i++) {
+            var sx = xScale(i) - slotW / 2;
+            svg += '<rect x="' + sx + '" y="' + PAD.top + '" width="' + slotW + '" height="' + plotH + '" fill="transparent" data-idx="' + i + '" class="etf-hover-zone"/>';
         }
 
         document.getElementById("etfChartContainer").innerHTML =
-            '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;font-family:-apple-system,SF Pro Text,Helvetica,Arial,sans-serif;">' +
+            '<svg id="etfSvg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;font-family:-apple-system,SF Pro Text,Helvetica,Arial,sans-serif;">' +
             svg + "</svg>";
+
+        // Attach hover handlers
+        var svgEl = document.getElementById("etfSvg");
+        if (svgEl) {
+            var tipLine = document.getElementById(hoverId + "_line");
+            var tipRect = document.getElementById(hoverId + "_tip");
+            var tipText = document.getElementById(hoverId + "_text");
+
+            svgEl.addEventListener("mousemove", function (e) {
+                var rect = svgEl.getBoundingClientRect();
+                var mx = (e.clientX - rect.left) / rect.width * W;
+                var my = (e.clientY - rect.top) / rect.height * H;
+
+                // Find closest data point
+                var closestI = 0, closestDist = Infinity;
+                for (var i = 0; i < n; i++) {
+                    var d = Math.abs(xScale(i) - mx);
+                    if (d < closestDist) { closestDist = d; closestI = i; }
+                }
+                if (closestDist > slotW) { tipLine.style.display = "none"; tipRect.style.display = "none"; tipText.style.display = "none"; return; }
+
+                var cx = xScale(closestI);
+                var b = bars[closestI];
+
+                tipLine.setAttribute("x1", cx); tipLine.setAttribute("x2", cx);
+                tipLine.style.display = "";
+
+                // Always show full labeled data regardless of chart type
+                var fmt = function (label, val, unit) {
+                    if (val == null || !isFinite(val)) return label + "：--";
+                    var s = val.toFixed(val % 1 === 0 ? 0 : 3);
+                    if (unit === "pct") s = (val > 0 ? "+" : "") + val.toFixed(2) + "%";
+                    if (unit === "amt") s = (val / 1e8).toFixed(2) + "亿";
+                    return label + "：" + s;
+                };
+
+                var lines = [
+                    "日期：" + b.date,
+                    fmt("最高价", b.high),
+                    fmt("开盘价", b.open),
+                    fmt("最低价", b.low),
+                    fmt("收盘价", b.close),
+                    fmt("涨跌幅", b.change_pct, "pct"),
+                    fmt("溢价率", b.premium_pct, "pct"),
+                    fmt("振幅", b.amplitude_pct, "pct"),
+                    fmt("成交额", b.amount, "amt"),
+                ];
+
+                // Tooltip sizing
+                var tipW = 155, lineH = 13, tipH = lineH * lines.length + 14;
+                var tipX = cx + 10, tipY = PAD.top + 4;
+                if (tipX + tipW > W - PAD.right) tipX = cx - tipW - 10;
+
+                tipRect.setAttribute("x", tipX); tipRect.setAttribute("y", tipY);
+                tipRect.setAttribute("width", tipW); tipRect.setAttribute("height", tipH);
+                tipRect.style.display = "";
+
+                var tspans = "";
+                lines.forEach(function (l, li) {
+                    var ty = tipY + lineH + li * lineH + 2;
+                    tspans += '<tspan x="' + (tipX + 8) + '" y="' + ty + '">' + l + "</tspan>";
+                });
+                tipText.innerHTML = tspans;
+                tipText.style.display = "";
+            });
+
+            svgEl.addEventListener("mouseleave", function () {
+                tipLine.style.display = "none";
+                tipRect.style.display = "none";
+                tipText.style.display = "none";
+            });
+        }
+    }
+
+
+    /* ── buildChartBody — single-type chart rendering ── */
+    function buildChartBody(chartType, bars, hasPremium, W, H, PAD, plotW, plotH, n, xScale) {
+        var svg = '<rect width="' + W + '" height="' + H + '" fill="transparent"/>';
+        var gridLines = 5;
+        var nh = n.toString();
+
+        // ── CANDLESTICK ──
+        if (chartType === "candle") {
+            var minV = Infinity, maxV = -Infinity;
+            for (var i = 0; i < n; i++) {
+                if (bars[i].low < minV) minV = bars[i].low;
+                if (bars[i].high > maxV) maxV = bars[i].high;
+            }
+            var pad = (maxV - minV) * 0.06 || 0.1;
+            minV -= pad; maxV += pad;
+            var vRange = maxV - minV;
+            var yScale = function (v) { return PAD.top + plotH - ((v - minV) / vRange) * plotH; };
+
+            for (var g = 0; g <= gridLines; g++) {
+                var val = minV + (vRange / gridLines) * g;
+                var y = yScale(val);
+                svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"/>';
+                svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + val.toFixed(2) + "</text>";
+            }
+
+            var slotW = Math.min(plotW / n, 10);
+            for (var i = 0; i < n; i++) {
+                var b = bars[i], cx = xScale(i);
+                var isUp = b.close >= b.open;
+                var color = isUp ? CHART_COLORS.candleUp : CHART_COLORS.candleDown;
+                var yHigh = yScale(b.high), yLow = yScale(b.low);
+                var yOpen = yScale(b.open), yClose = yScale(b.close);
+
+                svg += '<line x1="' + cx + '" y1="' + yHigh + '" x2="' + cx + '" y2="' + yLow + '" stroke="' + color + '" stroke-width="1"/>';
+                var bodyH = Math.abs(yClose - yOpen);
+                var bodyW = Math.max(slotW * 0.65, 1.5);
+                if (bodyH < 0.5) bodyH = 0.5;
+                var bodyTop = isUp ? yClose : yOpen;
+                svg += '<rect x="' + (cx - bodyW / 2) + '" y="' + bodyTop + '" width="' + bodyW + '" height="' + bodyH + '" fill="' + color + '" stroke="' + color + '" stroke-width="0.5"/>';
+            }
+            svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">蜡烛图 (OHLC)</text>';
+            svg = svg = addXAxis(svg, bars, n, xScale, H, PAD);
+            return svg;
+        }
+
+        // ── LINE CHARTS (change%, premium, amplitude, amount) ──
+        var values = [], label = "", unit = "", color = "rgba(255,255,255,0.7)", symmetric = false;
+
+        if (chartType === "change") {
+            for (var i = 0; i < n; i++) values.push(bars[i].change_pct);
+            label = "涨跌幅"; unit = "%"; color = "#5ac8fa"; symmetric = true;
+        } else if (chartType === "premium") {
+            for (var i = 0; i < n; i++) values.push(bars[i].premium_pct);
+            label = "溢价率"; unit = "%"; color = "#ff9f0a"; symmetric = true;
+        } else if (chartType === "amplitude") {
+            for (var i = 0; i < n; i++) values.push(bars[i].amplitude_pct);
+            label = "振幅"; unit = "%"; color = "#bf5af2";
+        } else if (chartType === "amount") {
+            for (var i = 0; i < n; i++) values.push(bars[i].amount);
+            label = "成交额"; unit = "亿"; color = "#30d158";
+        } else {
+            return null;
+        }
+
+        // Filter valid values for range
+        var validVals = values.filter(function (v) { return v != null && isFinite(v); });
+        if (!validVals.length) return null;
+
+        // Uniform 15% padding for all chart types
+        var dataMin = Math.min.apply(null, validVals);
+        var dataMax = Math.max.apply(null, validVals);
+        if (dataMin === dataMax) { dataMin -= 1; dataMax += 1; }
+        var pad = (dataMax - dataMin) * 0.15 || 1;
+        if (symmetric) {
+            var absMax = Math.max(Math.abs(dataMin), Math.abs(dataMax)) + pad;
+            dataMax = absMax;
+            dataMin = -absMax;
+        } else {
+            if (chartType === "amount") dataMin = 0;
+            if (chartType === "amplitude") dataMin = Math.max(0, dataMin - pad);
+            else dataMin -= pad;
+            dataMax += pad;
+        }
+        var dRange = dataMax - dataMin;
+        var ly = function (v) { return PAD.top + plotH - ((v - dataMin) / dRange) * plotH; };
+
+        // Grid + Y labels
+        for (var g = 0; g <= gridLines; g++) {
+            var val = dataMin + (dRange / gridLines) * g;
+            var y = ly(val);
+            svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"/>';
+            var lbl;
+            if (chartType === "amount") lbl = (val / 1e8).toFixed(1);
+            else lbl = val.toFixed(1) + unit;
+            svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + lbl + "</text>";
+        }
+
+        // Zero line for symmetric charts
+        if (symmetric) {
+            var zy = ly(0);
+            svg += '<line x1="' + PAD.left + '" y1="' + zy + '" x2="' + (W - PAD.right) + '" y2="' + zy + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5" stroke-dasharray="3,3"/>';
+        }
+
+        // Data line
+        var path = "";
+        for (var i = 0; i < n; i++) {
+            if (values[i] == null || !isFinite(values[i])) continue;
+            var py = ly(values[i]);
+            path += (path ? "L" : "M") + xScale(i).toFixed(1) + "," + py.toFixed(1) + " ";
+        }
+        if (path) {
+            svg += '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+        }
+
+        // Amount: fill area below line
+        if (chartType === "amount" && path) {
+            var areaPath = path + " L" + xScale(n - 1).toFixed(1) + "," + ly(0).toFixed(1) + " L" + xScale(0).toFixed(1) + "," + ly(0).toFixed(1) + " Z";
+            svg += '<path d="' + areaPath + '" fill="rgba(48,209,88,0.08)"/>';
+        }
+
+        svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">' + label + " (" + unit + ")</text>";
+        addXAxis(svg, bars, n, xScale, H, PAD);
+        return svg;
+    }
+
+    function addXAxis(svg, bars, n, xScale, H, PAD) {
+        var labelEvery = Math.max(1, Math.floor(n / 6));
+        for (var i = 0; i < n; i++) {
+            if (i % labelEvery !== 0 && i !== n - 1) continue;
+            var cx = xScale(i);
+            var ds = bars[i].date.slice(5);
+            svg += '<text x="' + cx + '" y="' + (H - PAD.bottom + 16) + '" fill="' + CHART_COLORS.textDim + '" font-size="9" text-anchor="middle">' + ds + "</text>";
+            svg += '<line x1="' + cx + '" y1="' + (H - PAD.bottom) + '" x2="' + cx + '" y2="' + (H - PAD.bottom + 5) + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5"/>';
+        }
+        return svg;
     }
 })();

@@ -40,8 +40,8 @@ F_AMOUNT = 37       # 成交额(万元)
 F_TURNOVER = 38     # 换手率%
 F_AMPLITUDE = 43    # 振幅%
 F_MC_CIRC = 44      # 流通市值(亿)
-F_MC_TOTAL = 73     # 总市值(元) *
-F_PREMIUM = 69      # 溢价率% *
+F_MC_TOTAL = 45     # 总市值(亿)
+F_PREMIUM = 77      # 溢价率% (ETF 折溢价)
 F_WEEK52_HIGH = 67  # 52周最高 *
 F_WEEK52_LOW = 68   # 52周最低 *
 F_IOPV = 85         # 实时参考净值 *
@@ -88,17 +88,12 @@ def _parse_tencent_quote(raw: str) -> Optional[dict]:
     amount = _num(_f(F_AMOUNT))        # 万元
     turnover = _num(_f(F_TURNOVER))
     mc_circ = _num(_f(F_MC_CIRC))      # 亿
-    mc_total_raw = _num(_f(F_MC_TOTAL))
+    mc_total = _num(_f(F_MC_TOTAL))     # 亿
     premium = _num(_f(F_PREMIUM))
     week52_high = _num(_f(F_WEEK52_HIGH))
     week52_low = _num(_f(F_WEEK52_LOW))
     iopv = _num(_f(F_IOPV))
     vol_ratio = _num(_f(F_VOL_RATIO))
-
-    # Normalise total market cap: raw field is in yuan, convert to 亿
-    mc_total = None
-    if mc_total_raw is not None and mc_total_raw > 0:
-        mc_total = round(mc_total_raw / 1e8, 2)
 
     return {
         "code": code,
@@ -238,6 +233,7 @@ def history():
             continue
         seen.add(row[0])
         try:
+            amount_raw = float(row[8]) if len(row) > 8 and row[8] else 0  # 万元
             parsed.append({
                 "date": row[0],
                 "open": float(row[1]),
@@ -245,6 +241,7 @@ def history():
                 "high": float(row[3]),
                 "low": float(row[4]),
                 "volume": float(row[5]) if row[5] else 0,
+                "amount": amount_raw * 10000,  # 万元 → 元
             })
         except (ValueError, IndexError):
             continue
@@ -253,13 +250,20 @@ def history():
     # Take the most recent N, then reverse to oldest→newest for display.
     parsed = list(reversed(parsed[:days]))
 
-    # Calculate daily change %
+    # Calculate daily change % and amplitude
     for i, p in enumerate(parsed):
         if i > 0 and parsed[i - 1]["close"]:
             prev = parsed[i - 1]["close"]
             p["change_pct"] = round((p["close"] - prev) / prev * 100, 2) if prev else 0
         else:
             p["change_pct"] = 0
+        # Amplitude: (high - low) / prev_close
+        if i > 0 and parsed[i - 1]["close"] and p["high"] and p["low"]:
+            p["amplitude_pct"] = round((p["high"] - p["low"]) / parsed[i - 1]["close"] * 100, 2)
+        else:
+            p["amplitude_pct"] = 0
+        # Amount: already in parsed from kline (万元), keep as-is
+        # The amount field is already in yuan from the kline parser
 
     # Fetch NAV history for premium calculation (best-effort)
     nav_map = _fetch_etf_nav(symbol, parsed[0]["date"], parsed[-1]["date"])
@@ -271,12 +275,33 @@ def history():
         else:
             p["premium_pct"] = None
 
+    # Backfill latest premium from real-time quote (NAV has T+1 delay)
+    _backfill_live_premium(symbol, parsed)
+
     return jsonify({
         "symbol": symbol,
         "bars": parsed,
         "count": len(parsed),
         "has_premium": any(b["premium_pct"] is not None for b in parsed),
     })
+
+
+def _backfill_live_premium(symbol: str, bars: list) -> None:
+    """Backfill the last bar's premium from real-time quote (NAV has T+1 delay)."""
+    if not bars or bars[-1].get("premium_pct") is not None:
+        return
+    try:
+        tsym = _tencent_symbol(symbol)
+        resp = requests.get(
+            "https://qt.gtimg.cn/q=" + tsym,
+            timeout=_REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        parsed = _parse_tencent_quote(resp.text)
+        if parsed and parsed.get("premium") is not None:
+            bars[-1]["premium_pct"] = parsed["premium"]
+    except Exception as e:
+        logger.warning("Live premium backfill failed for %s: %s", symbol, e)
 
 
 def _fetch_etf_nav(symbol: str, start_date: str, end_date: str) -> dict:
