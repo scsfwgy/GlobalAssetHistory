@@ -284,12 +284,75 @@ def history():
             p["nav"] = None
 
     premium_approx = bool(not nav_map and live_premium is not None)
+
+    # ── Stats summary ──
+    first_date = parsed[0]["date"] if parsed else None
+    last_date = parsed[-1]["date"] if parsed else None
+    days_since_first = None
+    if first_date:
+        try:
+            fd = datetime.strptime(first_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            days_since_first = (datetime.now(timezone.utc) - fd).days
+        except ValueError:
+            pass
+
+    # N-month returns (from last bar backwards)
+    def _ret_over_bars(bars, months):
+        target_days = months * 21  # ~trading days per month
+        if len(bars) <= target_days:
+            return None
+        prev = bars[-1 - target_days]["close"]
+        curr = bars[-1]["close"]
+        if prev and prev > 0:
+            return round((curr / prev - 1) * 100, 2)
+        return None
+
+    ret_1m = _ret_over_bars(parsed, 1)
+    ret_3m = _ret_over_bars(parsed, 3)
+
+    # Average daily turnover (amount)
+    amounts = [b["amount"] for b in parsed if b.get("amount")]
+    avg_amount = round(sum(amounts) / len(amounts), 2) if amounts else None
+
+    # Fund company — match known suffixes from the real-time quote name
+    company = None
+    try:
+        tsym = _tencent_symbol(symbol)
+        qr = requests.get("https://qt.gtimg.cn/q=" + tsym, timeout=_REQUEST_TIMEOUT)
+        parsed_qt = _parse_tencent_quote(qr.text) if qr.status_code == 200 else None
+        if parsed_qt:
+            name = parsed_qt.get("name", "")
+            # Common fund company name patterns in A-share ETF names
+            for kw, co in [
+                ("华夏", "华夏基金"), ("南方", "南方基金"), ("易方达", "易方达基金"),
+                ("嘉实", "嘉实基金"), ("博时", "博时基金"), ("广发", "广发基金"),
+                ("国泰", "国泰基金"), ("华安", "华安基金"), ("富国", "富国基金"),
+                ("招商", "招商基金"), ("华泰柏瑞", "华泰柏瑞基金"), ("摩根", "摩根基金"),
+                ("汇添富", "汇添富基金"), ("景顺", "景顺长城基金"), ("大成", "大成基金"),
+            ]:
+                if kw in name:
+                    company = co
+                    break
+            if not company:
+                company = name  # fallback: use full name
+    except Exception:
+        pass
+
     return jsonify({
         "symbol": symbol,
         "bars": parsed,
         "count": len(parsed),
         "has_premium": any(b["premium_pct"] is not None for b in parsed),
         "premium_approx": premium_approx,
+        "stats": {
+            "first_date": first_date,
+            "last_date": last_date,
+            "days_since_listed": days_since_first,
+            "ret_1m": ret_1m,
+            "ret_3m": ret_3m,
+            "avg_daily_amount": avg_amount,
+            "company": company,
+        },
     })
 
 

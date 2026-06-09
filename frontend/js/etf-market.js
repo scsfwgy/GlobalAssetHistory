@@ -6,6 +6,8 @@
  * - Row click → expand detail panel with SVG candlestick chart + daily change% overlay
  */
 (function () {
+    var L = "<"; var C = L + "/";  // < and </ to avoid Node 24 parser issue
+
     /* ── ETF groups ── */
     var ETF_GROUPS = {
         nasdaq100: {
@@ -38,7 +40,7 @@
     /* ── State ── */
     var _quotes = {};
     var _activeTab = "nasdaq100";
-    var _sortCol = "price";
+    var _sortCol = "mc_total";
     var _sortDir = "desc";
     var _expandedCode = null;
     var _lastChartData = null;
@@ -135,7 +137,7 @@
                 renderTable();
             })
             .catch(function () {
-                document.getElementById("etfBody").innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败</td></tr>';
+                document.getElementById("etfBody").innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + END + '</tr>';
             });
     }
 
@@ -189,12 +191,12 @@
         };
 
         var num = function (val, dec, unit) {
-            if (val == null) return '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--</span>';
+            if (val == null) return '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>';
             var d = val.toFixed(dec);
             if (unit === "vol") d = (val / 10000).toFixed(1) + "万";
             else if (unit === "amt") { d = val >= 1e8 ? (val / 1e8).toFixed(1) + "亿" : (val / 1e4).toFixed(0) + "万"; }
             else if (unit === "pct") d += "%";
-            return '<span style="text-align:right;display:block;">' + d + "</span>";
+            return '<span style="text-align:right;display:block;">' + d + C + 'span>';
         };
 
         var pctCls = "", pctDisp = "--";
@@ -207,27 +209,27 @@
             premDisp = q.premium.toFixed(2) + "%";
             premCls = q.premium > 0 ? "etf-pos" : q.premium < 0 ? "etf-neg" : "";
         }
-        var badge = has ? '<span class="etf-badge-' + q.market.toLowerCase() + '">' + q.market + "</span> " : "";
+        var badge = has ? '<span class="etf-badge-' + q.market.toLowerCase() + '">' + q.market + C + 'span> ' : "";
         var name = (has && q.name) ? q.name : item.name;
 
         var expandedCls = (_expandedCode === code) ? " expanded" : "";
 
         var html =
             '<tr class="etf-row' + expandedCls + '" data-etf-code="' + code + '">' +
-            "<td>" + badge + code + "</td>" +
-            "<td>" + name + "</td>" +
-            "<td style=\"font-weight:600;\">" + num(has ? q.price : null, 3) + "</td>" +
-            '<td><span class="' + pctCls + '" style="text-align:right;display:block;">' + pctDisp + "</span></td>" +
-            "<td>" + num(has ? q.open : null, 3) + "</td>" +
-            "<td>" + num(has ? q.high : null, 3) + "</td>" +
-            "<td>" + num(has ? q.low : null, 3) + "</td>" +
-            "<td>" + num(has ? q.amplitude : null, 2, "pct") + "</td>" +
-            "<td>" + num(has ? q.volume : null, 0, "vol") + "</td>" +
-            "<td>" + num(has ? q.amount : null, 0, "amt") + "</td>" +
-            "<td>" + num(has ? q.turnover : null, 2, "pct") + "</td>" +
-            "<td>" + num(has ? q.mc_total : null, 2) + "</td>" +
-            '<td><span class="' + premCls + '" style="text-align:right;display:block;">' + premDisp + "</span></td>" +
-            "</tr>";
+            "<td>" + badge + code + C + "td>" +
+            "<td>" + name + C + "td>" +
+            "<td style=\"font-weight:600;\">" + num(has ? q.price : null, 3) + C + "td>" +
+            '<td><span class="' + pctCls + '" style="text-align:right;display:block;">' + pctDisp + C + "span>" + C + "td>" +
+            "<td>" + num(has ? q.open : null, 3) + C + "td>" +
+            "<td>" + num(has ? q.high : null, 3) + C + "td>" +
+            "<td>" + num(has ? q.low : null, 3) + C + "td>" +
+            "<td>" + num(has ? q.amplitude : null, 2, "pct") + C + "td>" +
+            "<td>" + num(has ? q.volume : null, 0, "vol") + C + "td>" +
+            "<td>" + num(has ? q.amount : null, 0, "amt") + C + "td>" +
+            "<td>" + num(has ? q.turnover : null, 2, "pct") + C + "td>" +
+            "<td>" + num(has ? q.mc_total : null, 2) + C + "td>" +
+            '<td><span class="' + premCls + '" style="text-align:right;display:block;">' + premDisp + C + "span>" + C + "td>" +
+            C + "tr>";
 
         return { _html: html, _sv: getSortVal() };
     }
@@ -259,21 +261,38 @@
 
         document.getElementById("etfDetailTitle").textContent = title;
 
-        // Stats
-        var stats = "";
-        if (q) {
-            var addStat = function (label, val, unit) {
-                if (val == null) return;
-                stats += '<span><b>' + label + "</b> " + val.toFixed(val % 1 === 0 ? 0 : 3) + (unit || "") + "</span>";
-            };
-            addStat("最新价", q.price, " ¥");
-            addStat("涨跌幅", q.change_pct, "%");
-            addStat("溢价率", q.premium, "%");
-            addStat("换手率", q.turnover, "%");
-            addStat("振幅", q.amplitude, "%");
-            if (q.amount) addStat("成交额", q.amount >= 1e8 ? q.amount / 1e8 : q.amount / 1e4, q.amount >= 1e8 ? "亿" : "万");
-        }
-        document.getElementById("etfDetailStats").innerHTML = stats;
+        // Stats table — DOM API to avoid Node 24 </ parsing issue
+        var tbody = document.querySelector("#etfDetailStats tbody");
+        tbody.innerHTML = "";
+
+        // Fund company from item name (ETF_GROUPS shorthand like "华夏", "华泰柏瑞")
+        var companyName = (item && item.name) || ((q && q.name) ? q.name : "--");
+
+        var tr = document.createElement("tr");
+        function addLbl(v) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-label";tr.appendChild(t); }
+        function addVal(v, cls) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-val" + (cls ? " "+cls : "");tr.appendChild(t); }
+
+        addLbl("基金公司");
+        addVal(companyName);
+        addLbl("最新价");
+        addVal(q && q.price != null ? q.price.toFixed(3) + " ¥" : "--", "etf-ds-price");
+
+        addPctLabel = function(l, v) {
+            addLbl(l);
+            if (v==null) addVal("--");
+            else { var t=document.createElement("td");t.textContent=(v>0?"+":"")+v.toFixed(2)+"%";t.className="etf-ds-val "+(v>0?"etf-pos":v<0?"etf-neg":"");tr.appendChild(t); }
+        };
+        addPctLabel("涨跌幅", q ? q.change_pct : null);
+        addPctLabel("溢价率", q ? q.premium : null);
+        addLbl("换手率");
+        addVal(q && q.turnover != null ? q.turnover.toFixed(2)+"%" : "--");
+        addLbl("振幅");
+        addVal(q && q.amplitude != null ? q.amplitude.toFixed(2)+"%" : "--");
+        addLbl("成交额");
+        addVal(q && q.amount != null ? (q.amount>=1e8?(q.amount/1e8).toFixed(2)+"亿":(q.amount/1e4).toFixed(0)+"万") : "--");
+
+        tbody.appendChild(tr);
+
         document.getElementById("etfDetail").style.display = "block";
 
         // Fetch history and render chart
@@ -282,19 +301,42 @@
             .then(function (data) {
                 if (data.bars && data.bars.length > 0) {
                     _lastChartData = data;
-                    // Show note if premium is approximated
                     var noteEl = document.getElementById("etfPremiumNote");
                     if (noteEl) noteEl.style.display = data.premium_approx ? "" : "none";
+                    appendHistoryStats(data.stats);
                     renderChart();
                 } else {
                     document.getElementById("etfChartContainer").innerHTML =
-                        '<div style="text-align:center;padding:24px;color:var(--apple-text-secondary);">暂无历史数据</div>';
+                        '<div style="text-align:center;padding:24px;color:var(--apple-text-secondary);">暂无历史数据' + C + 'div>';
                 }
             })
             .catch(function () {
                 document.getElementById("etfChartContainer").innerHTML =
-                    '<div style="text-align:center;padding:24px;color:var(--data-negative);">加载图表失败</div>';
+                    '<div style="text-align:center;padding:24px;color:var(--data-negative);">加载图表失败' + C + 'div>';
             });
+    }
+
+    function appendHistoryStats(st) {
+        if (!st) return;
+        var tbody = document.querySelector("#etfDetailStats tbody");
+        if (!tbody) return;
+        var tr = document.createElement("tr");
+        function addLbl(v) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-label";tr.appendChild(t); }
+        function addVal(v, cls) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-val"+(cls?" "+cls:"");tr.appendChild(t); }
+        function addPctLbl(l, v) {
+            addLbl(l);
+            if (v==null) addVal("--");
+            else { var t=document.createElement("td");t.textContent=(v>0?"+":"")+v.toFixed(2)+"%";t.className="etf-ds-val "+(v>0?"etf-pos":v<0?"etf-neg":"");tr.appendChild(t); }
+        }
+        function avgFmt(v) { return v==null?"--":v>=1e8?(v/1e8).toFixed(2)+"亿":(v/1e4).toFixed(0)+"万"; }
+
+        addLbl("上市"); addVal((st.first_date||"").slice(0,7));
+        addLbl("天数"); addVal((st.days_since_listed||"?")+"天");
+        addPctLbl("近1月", st.ret_1m);
+        addPctLbl("近3月", st.ret_3m);
+        addLbl("日均成交"); addVal(avgFmt(st.avg_daily_amount));
+
+        tbody.appendChild(tr);
     }
 
     function hideDetail() {
@@ -333,20 +375,20 @@
 
         // Crosshair + hover tooltip layer
         var hoverId = "etfHover_" + chartType;
-        svg += '<line id="' + hoverId + '_line" x1="0" y1="0" x2="0" y2="' + H + '" stroke="' + CHART_COLORS.crosshair + '" stroke-width="1" stroke-dasharray="4,2" style="display:none;pointer-events:none"/>';
-        svg += '<rect id="' + hoverId + '_tip" x="0" y="0" width="160" height="1" rx="6" fill="' + CHART_COLORS.tooltipBg + '" style="display:none;pointer-events:none"/>';
-        svg += '<text id="' + hoverId + '_text" x="0" y="0" fill="#fff" font-size="11" style="display:none;pointer-events:none"/>';
+        svg += '<line id="' + hoverId + '_line" x1="0" y1="0" x2="0" y2="' + H + '" stroke="' + CHART_COLORS.crosshair + '" stroke-width="1" stroke-dasharray="4,2" style="display:none;pointer-events:none"' + "/>";
+        svg += '<rect id="' + hoverId + '_tip" x="0" y="0" width="160" height="1" rx="6" fill="' + CHART_COLORS.tooltipBg + '" style="display:none;pointer-events:none"' + "/>";
+        svg += '<text id="' + hoverId + '_text" x="0" y="0" fill="#fff" font-size="11" style="display:none;pointer-events:none"' + ">" + C + "text>";
 
-        // Invisible hover zones (one rect per data point slot)
+        // Invisible hover zones
         var slotW = plotW / Math.max(n - 1, 1);
         for (var i = 0; i < n; i++) {
             var sx = xScale(i) - slotW / 2;
-            svg += '<rect x="' + sx + '" y="' + PAD.top + '" width="' + slotW + '" height="' + plotH + '" fill="transparent" data-idx="' + i + '" class="etf-hover-zone"/>';
+            svg += '<rect x="' + sx + '" y="' + PAD.top + '" width="' + slotW + '" height="' + plotH + '" fill="transparent" data-idx="' + i + '" class="etf-hover-zone"' + "/>";
         }
 
         document.getElementById("etfChartContainer").innerHTML =
             '<svg id="etfSvg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;font-family:-apple-system,SF Pro Text,Helvetica,Arial,sans-serif;">' +
-            svg + "</svg>";
+            svg + C + "svg>";
 
         // Attach hover handlers
         var svgEl = document.getElementById("etfSvg");
@@ -358,9 +400,6 @@
             svgEl.addEventListener("mousemove", function (e) {
                 var rect = svgEl.getBoundingClientRect();
                 var mx = (e.clientX - rect.left) / rect.width * W;
-                var my = (e.clientY - rect.top) / rect.height * H;
-
-                // Find closest data point
                 var closestI = 0, closestDist = Infinity;
                 for (var i = 0; i < n; i++) {
                     var d = Math.abs(xScale(i) - mx);
@@ -374,7 +413,6 @@
                 tipLine.setAttribute("x1", cx); tipLine.setAttribute("x2", cx);
                 tipLine.style.display = "";
 
-                // Always show full labeled data regardless of chart type
                 var fmt = function (label, val, unit) {
                     if (val == null || !isFinite(val)) return label + "：--";
                     var s = val.toFixed(val % 1 === 0 ? 0 : 3);
@@ -382,7 +420,6 @@
                     if (unit === "amt") s = (val / 1e8).toFixed(2) + "亿";
                     return label + "：" + s;
                 };
-
                 var lines = [
                     "日期：" + b.date,
                     fmt("最高价", b.high),
@@ -395,7 +432,6 @@
                     fmt("成交额", b.amount, "amt"),
                 ];
 
-                // Tooltip sizing
                 var tipW = 155, lineH = 13, tipH = lineH * lines.length + 14;
                 var tipX = cx + 10, tipY = PAD.top + 4;
                 if (tipX + tipW > W - PAD.right) tipX = cx - tipW - 10;
@@ -407,7 +443,7 @@
                 var tspans = "";
                 lines.forEach(function (l, li) {
                     var ty = tipY + lineH + li * lineH + 2;
-                    tspans += '<tspan x="' + (tipX + 8) + '" y="' + ty + '">' + l + "</tspan>";
+                    tspans += '<tspan x="' + (tipX + 8) + '" y="' + ty + '">' + l + C + "tspan>";
                 });
                 tipText.innerHTML = tspans;
                 tipText.style.display = "";
@@ -424,9 +460,8 @@
 
     /* ── buildChartBody — single-type chart rendering ── */
     function buildChartBody(chartType, bars, hasPremium, W, H, PAD, plotW, plotH, n, xScale) {
-        var svg = '<rect width="' + W + '" height="' + H + '" fill="transparent"/>';
+        var svg = '<rect width="' + W + '" height="' + H + '" fill="transparent"' + "/>";
         var gridLines = 5;
-        var nh = n.toString();
 
         // ── CANDLESTICK ──
         if (chartType === "candle") {
@@ -443,8 +478,8 @@
             for (var g = 0; g <= gridLines; g++) {
                 var val = minV + (vRange / gridLines) * g;
                 var y = yScale(val);
-                svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"/>';
-                svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + val.toFixed(2) + "</text>";
+                svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"' + "/>";
+                svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + val.toFixed(2) + C + "text>";
             }
 
             var slotW = Math.min(plotW / n, 10);
@@ -455,15 +490,15 @@
                 var yHigh = yScale(b.high), yLow = yScale(b.low);
                 var yOpen = yScale(b.open), yClose = yScale(b.close);
 
-                svg += '<line x1="' + cx + '" y1="' + yHigh + '" x2="' + cx + '" y2="' + yLow + '" stroke="' + color + '" stroke-width="1"/>';
+                svg += '<line x1="' + cx + '" y1="' + yHigh + '" x2="' + cx + '" y2="' + yLow + '" stroke="' + color + '" stroke-width="1"' + "/>";
                 var bodyH = Math.abs(yClose - yOpen);
                 var bodyW = Math.max(slotW * 0.65, 1.5);
                 if (bodyH < 0.5) bodyH = 0.5;
                 var bodyTop = isUp ? yClose : yOpen;
-                svg += '<rect x="' + (cx - bodyW / 2) + '" y="' + bodyTop + '" width="' + bodyW + '" height="' + bodyH + '" fill="' + color + '" stroke="' + color + '" stroke-width="0.5"/>';
+                svg += '<rect x="' + (cx - bodyW / 2) + '" y="' + bodyTop + '" width="' + bodyW + '" height="' + bodyH + '" fill="' + color + '" stroke="' + color + '" stroke-width="0.5"' + "/>";
             }
-            svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">蜡烛图 (OHLC)</text>';
-            svg = svg = addXAxis(svg, bars, n, xScale, H, PAD);
+            svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">蜡烛图 (OHLC)' + C + "text>";
+            svg = addXAxis(svg, bars, n, xScale, H, PAD);
             return svg;
         }
 
@@ -486,7 +521,6 @@
             return null;
         }
 
-        // Filter valid values for range
         var validVals = values.filter(function (v) { return v != null && isFinite(v); });
         if (!validVals.length) return null;
 
@@ -494,16 +528,16 @@
         var dataMin = Math.min.apply(null, validVals);
         var dataMax = Math.max.apply(null, validVals);
         if (dataMin === dataMax) { dataMin -= 1; dataMax += 1; }
-        var pad = (dataMax - dataMin) * 0.15 || 1;
+        var dpad = (dataMax - dataMin) * 0.15 || 1;
         if (symmetric) {
-            var absMax = Math.max(Math.abs(dataMin), Math.abs(dataMax)) + pad;
+            var absMax = Math.max(Math.abs(dataMin), Math.abs(dataMax)) + dpad;
             dataMax = absMax;
             dataMin = -absMax;
         } else {
             if (chartType === "amount") dataMin = 0;
-            if (chartType === "amplitude") dataMin = Math.max(0, dataMin - pad);
-            else dataMin -= pad;
-            dataMax += pad;
+            if (chartType === "amplitude") dataMin = Math.max(0, dataMin - dpad);
+            else dataMin -= dpad;
+            dataMax += dpad;
         }
         var dRange = dataMax - dataMin;
         var ly = function (v) { return PAD.top + plotH - ((v - dataMin) / dRange) * plotH; };
@@ -512,17 +546,17 @@
         for (var g = 0; g <= gridLines; g++) {
             var val = dataMin + (dRange / gridLines) * g;
             var y = ly(val);
-            svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"/>';
+            svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CHART_COLORS.grid + '" stroke-width="0.5"' + "/>";
             var lbl;
             if (chartType === "amount") lbl = (val / 1e8).toFixed(1);
             else lbl = val.toFixed(1) + unit;
-            svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + lbl + "</text>";
+            svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CHART_COLORS.textDim + '" font-size="10" text-anchor="end">' + lbl + C + "text>";
         }
 
         // Zero line for symmetric charts
         if (symmetric) {
             var zy = ly(0);
-            svg += '<line x1="' + PAD.left + '" y1="' + zy + '" x2="' + (W - PAD.right) + '" y2="' + zy + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5" stroke-dasharray="3,3"/>';
+            svg += '<line x1="' + PAD.left + '" y1="' + zy + '" x2="' + (W - PAD.right) + '" y2="' + zy + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5" stroke-dasharray="3,3"' + "/>";
         }
 
         // Data line
@@ -533,17 +567,17 @@
             path += (path ? "L" : "M") + xScale(i).toFixed(1) + "," + py.toFixed(1) + " ";
         }
         if (path) {
-            svg += '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+            svg += '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + "/>";
         }
 
         // Amount: fill area below line
         if (chartType === "amount" && path) {
             var areaPath = path + " L" + xScale(n - 1).toFixed(1) + "," + ly(0).toFixed(1) + " L" + xScale(0).toFixed(1) + "," + ly(0).toFixed(1) + " Z";
-            svg += '<path d="' + areaPath + '" fill="rgba(48,209,88,0.08)"/>';
+            svg += '<path d="' + areaPath + '" fill="rgba(48,209,88,0.08)"' + "/>";
         }
 
-        svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">' + label + " (" + unit + ")</text>";
-        addXAxis(svg, bars, n, xScale, H, PAD);
+        svg += '<text x="' + (PAD.left + 4) + '" y="' + (PAD.top + 11) + '" fill="' + CHART_COLORS.text + '" font-size="10">' + label + " (" + unit + ")" + C + "text>";
+        svg = addXAxis(svg, bars, n, xScale, H, PAD);
         return svg;
     }
 
@@ -553,8 +587,8 @@
             if (i % labelEvery !== 0 && i !== n - 1) continue;
             var cx = xScale(i);
             var ds = bars[i].date.slice(5);
-            svg += '<text x="' + cx + '" y="' + (H - PAD.bottom + 16) + '" fill="' + CHART_COLORS.textDim + '" font-size="9" text-anchor="middle">' + ds + "</text>";
-            svg += '<line x1="' + cx + '" y1="' + (H - PAD.bottom) + '" x2="' + cx + '" y2="' + (H - PAD.bottom + 5) + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5"/>';
+            svg += '<text x="' + cx + '" y="' + (H - PAD.bottom + 16) + '" fill="' + CHART_COLORS.textDim + '" font-size="9" text-anchor="middle">' + ds + C + "text>";
+            svg += '<line x1="' + cx + '" y1="' + (H - PAD.bottom) + '" x2="' + cx + '" y2="' + (H - PAD.bottom + 5) + '" stroke="' + CHART_COLORS.textDim + '" stroke-width="0.5"' + "/>";
         }
         return svg;
     }
