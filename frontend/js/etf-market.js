@@ -137,7 +137,7 @@
                 renderTable();
             })
             .catch(function () {
-                document.getElementById("etfBody").innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + END + '</tr>';
+                document.getElementById("etfBody").innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + C + 'td>' + C + 'tr>';
             });
     }
 
