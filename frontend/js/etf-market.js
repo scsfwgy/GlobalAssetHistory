@@ -137,7 +137,7 @@
                 renderTable();
             })
             .catch(function () {
-                document.getElementById("etfBody").innerHTML = '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + C + 'td>' + C + 'tr>';
+                document.getElementById("etfBody").innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + C + 'td>' + C + 'tr>';
             });
     }
 
@@ -186,7 +186,6 @@
         var getSortVal = function () {
             if (_sortCol === "code") return code;
             if (_sortCol === "name") return (has && q.name) ? q.name : item.name;
-            // mgmt_fee / custody_fee are strings like "0.60%" — parse for sorting
             if (_sortCol === "mgmt_fee" || _sortCol === "custody_fee") {
                 if (!has || !q[_sortCol]) return null;
                 var p = parseFloat(q[_sortCol]);
@@ -196,56 +195,64 @@
             return null;
         };
 
+        // --- Cell helpers ---
+        var R = ' style="text-align:right;"';  // right-align attr for numeric <td>
+
         var num = function (val, dec, unit) {
-            if (val == null) return '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>';
+            if (val == null) return '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>';
             var d = val.toFixed(dec);
-            if (unit === "vol") d = (val / 10000).toFixed(1) + "万";
-            else if (unit === "amt") { d = val >= 1e8 ? (val / 1e8).toFixed(1) + "亿" : (val / 1e4).toFixed(0) + "万"; }
-            else if (unit === "pct") d += "%";
-            return '<span style="text-align:right;display:block;">' + d + C + 'span>';
+            if (unit) d += unit;
+            return '<td' + R + '>' + d + C + 'td>';
         };
 
-        var pctCls = "", pctDisp = "--";
-        if (has && q.change_pct != null) {
-            pctDisp = q.change_pct.toFixed(2) + "%";
-            pctCls = q.change_pct > 0 ? "etf-pos" : q.change_pct < 0 ? "etf-neg" : "";
-        }
-        var premCls = "", premDisp = "--";
-        if (has && q.premium != null) {
-            premDisp = q.premium.toFixed(2) + "%";
-            premCls = q.premium > 0 ? "etf-pos" : q.premium < 0 ? "etf-neg" : "";
-        }
+        // Standard: green-up / red-down (涨跌幅, 溢价万元盈亏)
+        var pctCell = function (val, dec, unit) {
+            if (val == null) return '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>';
+            var cls = val > 0 ? "etf-pos" : val < 0 ? "etf-neg" : "";
+            var d = (val > 0 ? "+" : "") + val.toFixed(dec);
+            if (unit) d += unit;
+            return '<td' + R + ' class="' + cls + '">' + d + C + 'td>';
+        };
+
+        // Cost columns: positive = loss (RED), negative = gain (GREEN)  — inverted
+        var costPctCell = function (val, dec) {
+            if (val == null) return '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>';
+            var cls = val > 0 ? "etf-neg" : val < 0 ? "etf-pos" : "";
+            var d = (val > 0 ? "+" : "") + val.toFixed(dec) + "%";
+            return '<td' + R + ' class="' + cls + '">' + d + C + 'td>';
+        };
+
+        var costNumCell = function (val, dec, unit) {
+            if (val == null) return '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>';
+            var cls = val > 0 ? "etf-neg" : val < 0 ? "etf-pos" : "";
+            var d = (val > 0 ? "+" : "") + val.toFixed(dec) + (unit || "");
+            return '<td' + R + ' class="' + cls + '">' + d + C + 'td>';
+        };
+
         var badge = has ? '<span class="etf-badge-' + q.market.toLowerCase() + '">' + q.market + C + 'span> ' : "";
         var name = (has && q.name) ? q.name : item.name;
-
         var expandedCls = (_expandedCode === code) ? " expanded" : "";
 
-        // Fee columns
-        var feeDisp = function (val, isFeeStr) {
-            if (val == null) return '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>';
-            if (isFeeStr) return '<span style="text-align:right;display:block;">' + val + C + 'span>';
-            return '<span style="text-align:right;display:block;">' + val + C + 'span>';
+        // Fee display (strings like "0.60%")
+        var feeStrCell = function (val) {
+            if (!val) return '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>';
+            return '<td' + R + '>' + val + C + 'td>';
         };
 
+        // Columns: 代码 | 名称 | 最新价 | 涨跌幅 | 总市值(亿) | 管理费 | 托管费 | 费率合计 | 万元年费 | 溢价率 | 溢价万元盈亏
         var html =
             '<tr class="etf-row' + expandedCls + '" data-etf-code="' + code + '">' +
             "<td>" + badge + code + C + "td>" +
             "<td>" + name + C + "td>" +
-            "<td style=\"font-weight:600;\">" + num(has ? q.price : null, 3) + C + "td>" +
-            '<td><span class="' + pctCls + '" style="text-align:right;display:block;">' + pctDisp + C + "span>" + C + "td>" +
-            "<td>" + num(has ? q.open : null, 3) + C + "td>" +
-            "<td>" + num(has ? q.high : null, 3) + C + "td>" +
-            "<td>" + num(has ? q.low : null, 3) + C + "td>" +
-            "<td>" + num(has ? q.amplitude : null, 2, "pct") + C + "td>" +
-            "<td>" + num(has ? q.volume : null, 0, "vol") + C + "td>" +
-            "<td>" + num(has ? q.amount : null, 0, "amt") + C + "td>" +
-            "<td>" + num(has ? q.turnover : null, 2, "pct") + C + "td>" +
-            "<td>" + num(has ? q.mc_total : null, 2) + C + "td>" +
-            '<td><span class="' + premCls + '" style="text-align:right;display:block;">' + premDisp + C + "span>" + C + "td>" +
-            "<td>" + feeDisp(has ? q.mgmt_fee : null, true) + C + "td>" +
-            "<td>" + feeDisp(has ? q.custody_fee : null, true) + C + "td>" +
-            "<td>" + num(has ? q.total_fee : null, 2, "pct") + C + "td>" +
-            "<td>" + (has && q.fee_per_10k != null ? '<span style="text-align:right;display:block;">' + q.fee_per_10k.toFixed(0) + '元' + C + 'span>' : '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>') + C + "td>" +
+            "<td style=\"font-weight:600;text-align:right;\">" + (has && q.price != null ? q.price.toFixed(3) : '<span style="color:var(--apple-text-tertiary);">--' + C + 'span>') + C + "td>" +
+            pctCell(has ? q.change_pct : null, 2) +
+            num(has ? q.mc_total : null, 2) +
+            feeStrCell(has ? q.mgmt_fee : null) +
+            feeStrCell(has ? q.custody_fee : null) +
+            num(has ? q.total_fee : null, 2, "pct") +
+            num(has ? q.fee_per_10k : null, 0, "元") +
+            costPctCell(has ? q.premium : null, 2) +
+            pctCell(has ? q.premium_cost_per_10k : null, 0, "元") +
             C + "tr>";
 
         return { _html: html, _sv: getSortVal() };
@@ -282,33 +289,44 @@
         var tbody = document.querySelector("#etfDetailStats tbody");
         tbody.innerHTML = "";
 
-        // Fund company from item name (ETF_GROUPS shorthand like "华夏", "华泰柏瑞")
-        var companyName = (item && item.name) || ((q && q.name) ? q.name : "--");
-
-        var tr = document.createElement("tr");
-        function addLbl(v) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-label";tr.appendChild(t); }
-        function addVal(v, cls) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-val" + (cls ? " "+cls : "");tr.appendChild(t); }
-
-        addLbl("基金公司");
-        addVal(companyName);
-        addLbl("最新价");
-        addVal(q && q.price != null ? q.price.toFixed(3) + " ¥" : "--", "etf-ds-price");
-
-        addPctLabel = function(l, v) {
+        // Row 1 — matches table: 代码 | 名称 | 最新价 | 涨跌幅 | 总市值 | 管理费 | 托管费 | 费率合计 | 万元年费 | 溢价率 | 溢价万元盈亏
+        var tr1 = document.createElement("tr");
+        function addLbl(v) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-label";tr1.appendChild(t); }
+        function addVal(v, cls) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-val" + (cls ? " "+cls : "");tr1.appendChild(t); }
+        // Standard: green-up / red-down
+        function addStdPct(l, v) {
             addLbl(l);
             if (v==null) addVal("--");
-            else { var t=document.createElement("td");t.textContent=(v>0?"+":"")+v.toFixed(2)+"%";t.className="etf-ds-val "+(v>0?"etf-pos":v<0?"etf-neg":"");tr.appendChild(t); }
-        };
-        addPctLabel("涨跌幅", q ? q.change_pct : null);
-        addPctLabel("溢价率", q ? q.premium : null);
-        addLbl("换手率");
-        addVal(q && q.turnover != null ? q.turnover.toFixed(2)+"%" : "--");
-        addLbl("振幅");
-        addVal(q && q.amplitude != null ? q.amplitude.toFixed(2)+"%" : "--");
-        addLbl("成交额");
-        addVal(q && q.amount != null ? (q.amount>=1e8?(q.amount/1e8).toFixed(2)+"亿":(q.amount/1e4).toFixed(0)+"万") : "--");
+            else addVal((v>0?"+":"")+v.toFixed(2)+"%", v>0?"etf-pos":v<0?"etf-neg":"");
+        }
+        // Cost columns: positive = loss (RED), negative = gain (GREEN)
+        function addCostPct(l, v) {
+            addLbl(l);
+            if (v==null) addVal("--");
+            else addVal((v>0?"+":"")+v.toFixed(2)+"%", v>0?"etf-neg":v<0?"etf-pos":"");
+        }
 
-        tbody.appendChild(tr);
+        addLbl("代码"); addVal(code);
+        addLbl("名称"); addVal(name);
+        addLbl("最新价"); addVal(q && q.price != null ? q.price.toFixed(3) + " ¥" : "--", "etf-ds-price");
+        addStdPct("涨跌幅", q ? q.change_pct : null);
+        addLbl("总市值(亿)"); addVal(q && q.mc_total != null ? q.mc_total.toFixed(2) : "--");
+        addLbl("管理费"); addVal(q && q.mgmt_fee ? q.mgmt_fee : "--");
+        addLbl("托管费"); addVal(q && q.custody_fee ? q.custody_fee : "--");
+        addLbl("费率合计"); addVal(q && q.total_fee != null ? q.total_fee.toFixed(2)+"%" : "--");
+        addLbl("万元年费"); addVal(q && q.fee_per_10k != null ? q.fee_per_10k.toFixed(0)+"元" : "--");
+        addCostPct("溢价率", q ? q.premium : null);
+        // Premium cost: negative = loss (RED), positive = gain/savings (GREEN)
+        addLbl("溢价万元盈亏");
+        if (q && q.premium_cost_per_10k != null) {
+            var pc = q.premium_cost_per_10k;
+            var sign = pc > 0 ? "+" : "";
+            addVal(sign + pc.toFixed(0) + "元", pc < 0 ? "etf-neg" : pc > 0 ? "etf-pos" : "");
+        } else {
+            addVal("--");
+        }
+
+        tbody.appendChild(tr1);
 
         document.getElementById("etfDetail").style.display = "block";
 
@@ -320,7 +338,7 @@
                     _lastChartData = data;
                     var noteEl = document.getElementById("etfPremiumNote");
                     if (noteEl) noteEl.style.display = data.premium_approx ? "" : "none";
-                    appendHistoryStats(data.stats);
+                    appendHistoryStats(data.stats, q);
                     renderChart();
                 } else {
                     document.getElementById("etfChartContainer").innerHTML =
@@ -333,7 +351,7 @@
             });
     }
 
-    function appendHistoryStats(st) {
+    function appendHistoryStats(st, q) {
         if (!st) return;
         var tbody = document.querySelector("#etfDetailStats tbody");
         if (!tbody) return;
@@ -345,17 +363,22 @@
             if (v==null) addVal("--");
             else { var t=document.createElement("td");t.textContent=(v>0?"+":"")+v.toFixed(2)+"%";t.className="etf-ds-val "+(v>0?"etf-pos":v<0?"etf-neg":"");tr.appendChild(t); }
         }
-        function avgFmt(v) { return v==null?"--":v>=1e8?(v/1e8).toFixed(2)+"亿":(v/1e4).toFixed(0)+"万"; }
+        function amtFmt(v) { return v==null?"--":v>=1e8?(v/1e8).toFixed(2)+"亿":(v/1e4).toFixed(0)+"万"; }
+        function volFmt(v) { return v==null?"--":(v/10000).toFixed(1)+"万手"; }
 
+        // Row 2 — supplementary: 基金公司 | 上市 | 天数 | 近1月 | 近3月 | 开盘 | 最高 | 最低 | 振幅 | 成交量 | 成交额 | 换手率
+        addLbl("基金公司"); addVal(st.company || "--");
         addLbl("上市"); addVal((st.first_date||"").slice(0,7));
         addLbl("天数"); addVal((st.days_since_listed||"?")+"天");
         addPctLbl("近1月", st.ret_1m);
         addPctLbl("近3月", st.ret_3m);
-        addLbl("管理费"); addVal(st.mgmt_fee || "--");
-        addLbl("托管费"); addVal(st.custody_fee || "--");
-        addLbl("费率合计"); addVal(st.total_fee != null ? st.total_fee.toFixed(2) + "%" : "--");
-        addLbl("万元年费"); addVal(st.fee_per_10k != null ? st.fee_per_10k.toFixed(0) + "元" : "--");
-        addLbl("日均成交"); addVal(avgFmt(st.avg_daily_amount));
+        addLbl("开盘"); addVal(q && q.open != null ? q.open.toFixed(3) : "--");
+        addLbl("最高"); addVal(q && q.high != null ? q.high.toFixed(3) : "--");
+        addLbl("最低"); addVal(q && q.low != null ? q.low.toFixed(3) : "--");
+        addLbl("振幅"); addVal(q && q.amplitude != null ? q.amplitude.toFixed(2)+"%" : "--");
+        addLbl("成交量"); addVal(volFmt(q ? q.volume : null));
+        addLbl("成交额"); addVal(amtFmt(q ? q.amount : null));
+        addLbl("换手率"); addVal(q && q.turnover != null ? q.turnover.toFixed(2)+"%" : "--");
 
         tbody.appendChild(tr);
     }

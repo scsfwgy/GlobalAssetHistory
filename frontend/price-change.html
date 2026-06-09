@@ -718,7 +718,8 @@
         .wish-card-del:hover { opacity: 1; }
 
     /* ETF market table */
-    .etf-th-sort { cursor: pointer; user-select: none; padding: 10px 14px; }
+    #etfTable { table-layout: fixed; width: 100%; }
+    .etf-th-sort { cursor: pointer; user-select: none; padding: 10px 14px; overflow: hidden; text-overflow: ellipsis; }
     .etf-th-sort:hover { color: var(--apple-text-primary); }
     .etf-th-sort .etf-sort-arrow { font-size: 10px; margin-left: 2px; opacity: 0.4; }
     .etf-th-sort.active .etf-sort-arrow { opacity: 1; color: var(--apple-blue); }
@@ -727,8 +728,13 @@
     #etfBody tr.etf-row { cursor: pointer; transition: background 0.1s; }
     #etfBody tr.etf-row:hover { background: rgba(255,255,255,0.04); }
     #etfBody tr.etf-row.expanded { background: rgba(0,113,227,0.06); }
-    .etf-pos { color: var(--data-positive); }
-    .etf-neg { color: var(--data-negative); }
+    /* Alignment: cols 1-2 left, 3+ right; matches header etf-th-num */
+    #etfBody td:nth-child(1),
+    #etfBody td:nth-child(2) { text-align: left; }
+    #etfBody td:nth-child(n+3) { text-align: right; }
+    /* Row-level coloring (etf-pos/etf-neg) overrides the td:nth-child color */
+    #etfBody td.etf-pos { color: var(--data-positive); }
+    #etfBody td.etf-neg { color: var(--data-negative); }
     .etf-badge-sh { display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(255,69,58,0.12);color:var(--data-negative); }
     .etf-badge-sz { display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600;background:rgba(48,209,88,0.12);color:var(--data-positive); }
     #etfChartContainer { overflow-x: auto; }
@@ -737,6 +743,9 @@
     #etfDetailStats td.etf-ds-label { color: var(--apple-text-tertiary); font-size: 11px; padding-right: 4px; }
     #etfDetailStats td.etf-ds-val { color: var(--apple-text-primary); font-variant-numeric: tabular-nums; padding-right: 22px; }
     #etfDetailStats td.etf-ds-price { color: var(--data-positive); font-weight: 700; font-size: 15px; }
+    /* Override for colored cost/gain cells in detail panel */
+    #etfDetailStats td.etf-ds-val.etf-pos { color: var(--data-positive); }
+    #etfDetailStats td.etf-ds-val.etf-neg { color: var(--data-negative); }
     #etfDetailStats tr { border-bottom: 1px solid rgba(255,255,255,0.06); }
     </style>
     <!-- Analytics (Vercel + Cloudflare): injected only on the real deployed
@@ -1024,23 +1033,17 @@
                             <th class="etf-th-sort" data-etf-col="name">名称 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="price">最新价 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="change_pct">涨跌幅 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="open">开盘 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="high">最高 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="low">最低 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="amplitude">振幅 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="volume">成交量 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="amount">成交额 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="turnover">换手率 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num active" data-etf-col="mc_total">总市值(亿) <span class="etf-sort-arrow">▼</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="premium">溢价率 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="mgmt_fee">管理费 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="custody_fee">托管费 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="total_fee">费率合计 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="fee_per_10k">万元年费 <span class="etf-sort-arrow">⇅</span></th>
+                            <th class="etf-th-sort etf-th-num" data-etf-col="premium">溢价率 <span class="etf-sort-arrow">⇅</span></th>
+                            <th class="etf-th-sort etf-th-num" data-etf-col="premium_cost_per_10k">溢价万元盈亏 <span class="etf-sort-arrow">⇅</span></th>
                         </tr>
                     </thead>
                     <tbody id="etfBody">
-                        <tr><td colspan="17" style="text-align:center;padding:24px;color:var(--apple-text-secondary);">加载中...</td></tr>
+                        <tr><td colspan="11" style="text-align:center;padding:24px;color:var(--apple-text-secondary);">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>

@@ -208,6 +208,12 @@ def quote():
         else:
             q["total_fee"] = None
             q["fee_per_10k"] = None
+        # Premium cost per 10k RMB: negative = loss (you overpaid)
+        premium = q.get("premium")
+        if premium is not None:
+            q["premium_cost_per_10k"] = -round(10000 * premium / 100, 0)
+        else:
+            q["premium_cost_per_10k"] = None
 
     return jsonify({
         "quotes": results,
