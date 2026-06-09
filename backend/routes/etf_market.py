@@ -493,16 +493,21 @@ def _fetch_etf_nav(symbol: str, start_date: str, end_date: str) -> dict:
         if not items:
             break
 
+        oldest_in_page = None
         for item in items:
-            dt = item.get("FSRQ", "")  # 净值日期
+            dt = item.get("FSRQ", "")  # 净值日期，接口按新→旧排序
             nav = item.get("DWJZ")     # 单位净值
             if dt and nav:
                 try:
                     nav_map[dt] = float(nav)
                 except (ValueError, TypeError):
                     pass
+                oldest_in_page = dt  # items 为新→旧，最后一个有效值即本页最旧
 
-        if len(items) < page_size:
+        # East Money 实际每页只返回 ~20 条，忽略请求的 pageSize，所以不能用
+        # len(items) < page_size 作为终止条件（否则第一页就 break，拉不到更早
+        # 的历史净值）。改为翻到的最旧日期已早于 start_date 时停止。
+        if oldest_in_page and oldest_in_page <= start_date:
             break
 
     return nav_map
