@@ -1,126 +1,111 @@
 {
   "presets": {
-    "favorite": {
-      "label": "持有",
+    "holdings_us": {
+      "label": "持有（美股）",
       "symbols": [
-        { "symbol": "SPY", "type": "stock", "name": "标普500指数ETF" },
-        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100指数ETF" },
         { "symbol": "GOOGL", "type": "stock" },
-        { "symbol": "INTC", "type": "stock" },
-        { "symbol": "MRVL", "type": "stock" },
-        { "symbol": "MSFT", "type": "stock" },
+        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100ETF" },
         { "symbol": "NVDA", "type": "stock" },
-        { "symbol": "TSM", "type": "stock" },
-        { "symbol": "ETH", "type": "crypto" },
-        { "symbol": "SOL", "type": "crypto" },
-        { "symbol": "SUI", "type": "crypto" },
-        { "symbol": "PAXG", "type": "crypto", "name": "PAX黄金" }
+        { "symbol": "INTC", "type": "stock" },
+        { "symbol": "AAPL", "type": "stock" },
+        { "symbol": "NOK", "type": "stock" },
+        { "symbol": "AVGO", "type": "stock" },
+        { "symbol": "DRAM", "type": "stock", "name": "内存/存储ETF" },
+        { "symbol": "EWY", "type": "stock", "name": "韩国市场ETF" },
+        { "symbol": "SMH", "type": "stock", "name": "半导体ETF" },
+        { "symbol": "VGT", "type": "stock", "name": "信息技术ETF" }
       ]
     },
-    "all": {
-      "label": "全部热门",
+    "broad_index": {
+      "label": "大盘指数",
       "symbols": [
-        { "symbol": "SPY", "type": "stock", "name": "标普500指数ETF" },
-        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100指数ETF" },
+        { "symbol": "VIX", "type": "stock", "name": "恐慌指数" },
+        { "symbol": "SPY", "type": "stock", "name": "标普500ETF" },
+        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100ETF" },
         { "symbol": "000001", "type": "cn_stock", "name": "上证指数" },
         { "symbol": "000905", "type": "cn_stock", "name": "中证500" },
-        { "symbol": "PAXG", "type": "crypto", "name": "PAX黄金" },
         { "symbol": "BTC", "type": "crypto" },
-        { "symbol": "NVDA", "type": "stock" },
-        { "symbol": "AAPL", "type": "stock" },
-        { "symbol": "MSFT", "type": "stock" },
-        { "symbol": "GOOGL", "type": "stock" },
-        { "symbol": "AMZN", "type": "stock" },
-        { "symbol": "META", "type": "stock" },
-        { "symbol": "TSLA", "type": "stock" },
-        { "symbol": "ETH", "type": "crypto" },
-        { "symbol": "SOL", "type": "crypto" },
-        { "symbol": "BNB", "type": "crypto" }
+        { "symbol": "ETH", "type": "crypto" }
       ]
     },
-    "tech": {
-      "label": "美股七姐妹",
+    "core_us_etf": {
+      "label": "核心ETF（美股）",
       "symbols": [
-        { "symbol": "NVDA", "type": "stock" },
-        { "symbol": "AAPL", "type": "stock" },
-        { "symbol": "MSFT", "type": "stock" },
-        { "symbol": "GOOGL", "type": "stock" },
-        { "symbol": "AMZN", "type": "stock" },
-        { "symbol": "META", "type": "stock" },
-        { "symbol": "TSLA", "type": "stock" }
-      ]
-    },
-    "hot": {
-      "label": "美股热门",
-      "symbols": [
-        { "symbol": "GOOGL", "type": "stock" },
-        { "symbol": "AVGO", "type": "stock" },
-        { "symbol": "AMZN", "type": "stock" },
-        { "symbol": "NVDA", "type": "stock" },
-        { "symbol": "INTC", "type": "stock" },
-        { "symbol": "MU", "type": "stock" },
-        { "symbol": "AMD", "type": "stock" },
-        { "symbol": "MRVL", "type": "stock" },
-        { "symbol": "ARM", "type": "stock" },
-        { "symbol": "WDC", "type": "stock" }
-      ]
-    },
-    "crypto": {
-      "label": "加密货币",
-      "symbols": [
-        { "symbol": "BTC", "type": "crypto" },
-        { "symbol": "ETH", "type": "crypto" },
-        { "symbol": "SOL", "type": "crypto" },
-        { "symbol": "BNB", "type": "crypto" },
-        { "symbol": "XRP", "type": "crypto" },
-        { "symbol": "ADA", "type": "crypto" },
-        { "symbol": "DOT", "type": "crypto" }
-      ]
-    },
-    "etf": {
-      "label": "主流 ETF",
-      "symbols": [
-        { "symbol": "SPY", "type": "stock", "name": "标普500指数ETF" },
-        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100指数ETF" },
-        { "symbol": "DIA", "type": "stock" },
-        { "symbol": "IWM", "type": "stock" },
-        { "symbol": "GLD", "type": "stock" },
-        { "symbol": "TLT", "type": "stock" },
-        { "symbol": "VTI", "type": "stock" }
-      ]
-    },
-    "core_etf": {
-      "label": "核心美股ETF",
-      "symbols": [
-        { "symbol": "SPY", "type": "stock", "name": "标普500指数ETF" },
+        { "symbol": "SPY", "type": "stock", "name": "标普500ETF" },
         { "symbol": "VOO", "type": "stock", "name": "先锋标普500" },
-        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100指数ETF" },
+        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100ETF" },
+        { "symbol": "QQQM", "type": "stock", "name": "纳斯达克100低费" },
         { "symbol": "VGT", "type": "stock", "name": "信息技术ETF" },
-        { "symbol": "SMH", "type": "stock", "name": "半导体ETF" },
+        { "symbol": "XLK", "type": "stock", "name": "科技板块ETF" },
+        { "symbol": "SMH", "type": "stock", "name": "半导体ETF" }
+      ]
+    },
+    "aggressive_us_etf": {
+      "label": "激进ETF（美股）",
+      "symbols": [
         { "symbol": "DRAM", "type": "stock", "name": "内存/存储ETF" },
         { "symbol": "EWY", "type": "stock", "name": "韩国市场ETF" }
       ]
     },
-    "cn": {
-      "label": "A股指数",
+    "mag7": {
+      "label": "美股七姐妹",
       "symbols": [
-        { "symbol": "000001", "type": "cn_stock", "name": "上证指数" },
-        { "symbol": "000905", "type": "cn_stock", "name": "中证500" },
-        { "symbol": "000300", "type": "cn_stock", "name": "沪深300" },
-        { "symbol": "399006", "type": "cn_stock", "name": "创业板指" }
+        { "symbol": "AAPL", "type": "stock" },
+        { "symbol": "MSFT", "type": "stock" },
+        { "symbol": "GOOGL", "type": "stock" },
+        { "symbol": "AMZN", "type": "stock" },
+        { "symbol": "NVDA", "type": "stock" },
+        { "symbol": "META", "type": "stock" },
+        { "symbol": "TSLA", "type": "stock" }
       ]
     },
-    "cn_etf_sp500": {
-      "label": "A股ETF-标普500",
+    "hot_us_stocks": {
+      "label": "热门美股（美股）",
       "symbols": [
-        { "symbol": "513650", "type": "cn_stock", "name": "华夏标普500ETF" },
-        { "symbol": "159612", "type": "cn_stock", "name": "国泰标普500ETF" },
-        { "symbol": "513500", "type": "cn_stock", "name": "博时标普500ETF" },
-        { "symbol": "159652", "type": "cn_stock", "name": "易方达标普500ETF" }
+        { "symbol": "NVDA", "type": "stock" },
+        { "symbol": "TSLA", "type": "stock" },
+        { "symbol": "INTC", "type": "stock" },
+        { "symbol": "AAPL", "type": "stock" },
+        { "symbol": "MRVL", "type": "stock" },
+        { "symbol": "AMZN", "type": "stock" },
+        { "symbol": "MSFT", "type": "stock" },
+        { "symbol": "META", "type": "stock" },
+        { "symbol": "GOOGL", "type": "stock" },
+        { "symbol": "NFLX", "type": "stock" },
+        { "symbol": "PLTR", "type": "stock" },
+        { "symbol": "AMD", "type": "stock" },
+        { "symbol": "AVGO", "type": "stock" },
+        { "symbol": "MU", "type": "stock" },
+        { "symbol": "SOFI", "type": "stock" },
+        { "symbol": "MSTR", "type": "stock" },
+        { "symbol": "IREN", "type": "stock" },
+        { "symbol": "DELL", "type": "stock" },
+        { "symbol": "TSM", "type": "stock" },
+        { "symbol": "ARM", "type": "stock" }
+      ]
+    },
+    "hot_us_etf": {
+      "label": "热门美股ETF（美股）",
+      "symbols": [
+        { "symbol": "SPY", "type": "stock", "name": "标普500ETF" },
+        { "symbol": "QQQ", "type": "stock", "name": "纳斯达克100ETF" },
+        { "symbol": "VOO", "type": "stock", "name": "先锋标普500" },
+        { "symbol": "IWM", "type": "stock", "name": "罗素2000ETF" },
+        { "symbol": "SOXL", "type": "stock", "name": "半导体3倍做多" },
+        { "symbol": "TQQQ", "type": "stock", "name": "纳指3倍做多" },
+        { "symbol": "SMH", "type": "stock", "name": "半导体ETF" },
+        { "symbol": "IVV", "type": "stock", "name": "iShares标普500" },
+        { "symbol": "VTI", "type": "stock", "name": "全市场ETF" },
+        { "symbol": "IBIT", "type": "stock", "name": "iShares比特币ETF" },
+        { "symbol": "TLT", "type": "stock", "name": "20年国债ETF" },
+        { "symbol": "SQQQ", "type": "stock", "name": "纳指3倍做空" },
+        { "symbol": "SOXS", "type": "stock", "name": "半导体3倍做空" },
+        { "symbol": "XLF", "type": "stock", "name": "金融板块ETF" },
+        { "symbol": "GLD", "type": "stock", "name": "黄金ETF" }
       ]
     },
     "cn_etf_nasdaq100": {
-      "label": "A股ETF-纳指100",
+      "label": "纳指ETF追踪（A股）",
       "symbols": [
         { "symbol": "513300", "type": "cn_stock", "name": "华夏纳指100ETF" },
         { "symbol": "513110", "type": "cn_stock", "name": "华泰柏瑞纳指100ETF" },
@@ -133,6 +118,45 @@
         { "symbol": "159529", "type": "cn_stock", "name": "汇添富纳斯达克ETF" },
         { "symbol": "513100", "type": "cn_stock", "name": "国泰纳斯达克100ETF" },
         { "symbol": "159941", "type": "cn_stock", "name": "广发纳指ETF" }
+      ]
+    },
+    "cn_etf_sp500": {
+      "label": "标普ETF追踪（A股）",
+      "symbols": [
+        { "symbol": "513650", "type": "cn_stock", "name": "华夏标普500ETF" },
+        { "symbol": "159612", "type": "cn_stock", "name": "国泰标普500ETF" },
+        { "symbol": "513500", "type": "cn_stock", "name": "博时标普500ETF" },
+        { "symbol": "159652", "type": "cn_stock", "name": "易方达标普500ETF" }
+      ]
+    },
+    "cn_etf_others": {
+      "label": "其它ETF追踪（A股）",
+      "symbols": [
+        { "symbol": "513310", "type": "cn_stock", "name": "华泰柏瑞跨境ETF" },
+        { "symbol": "161128", "type": "cn_stock", "name": "易方达标普信息LOF" },
+        { "symbol": "501225", "type": "cn_stock", "name": "全球芯片LOF" },
+        { "symbol": "160644", "type": "cn_stock", "name": "鹏华美国房地产" }
+      ]
+    },
+    "hot_crypto": {
+      "label": "热门数字货币（数字货币）",
+      "symbols": [
+        { "symbol": "BTC", "type": "crypto" },
+        { "symbol": "ETH", "type": "crypto" },
+        { "symbol": "USDT", "type": "crypto", "name": "泰达币" },
+        { "symbol": "BNB", "type": "crypto" },
+        { "symbol": "SOL", "type": "crypto" },
+        { "symbol": "XRP", "type": "crypto" },
+        { "symbol": "ADA", "type": "crypto" }
+      ]
+    },
+    "cn_index": {
+      "label": "A股指数（A股）",
+      "symbols": [
+        { "symbol": "000001", "type": "cn_stock", "name": "上证指数" },
+        { "symbol": "000905", "type": "cn_stock", "name": "中证500" },
+        { "symbol": "000300", "type": "cn_stock", "name": "沪深300" },
+        { "symbol": "399006", "type": "cn_stock", "name": "创业板指" }
       ]
     }
   },
@@ -161,6 +185,7 @@
       "ATOM": "cosmos",
       "LTC": "litecoin",
       "BCH": "bitcoin-cash",
+      "USDT": "tether",
       "TRX": "tron",
       "ETC": "ethereum-classic",
       "XLM": "stellar",
