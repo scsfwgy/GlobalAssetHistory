@@ -1,0 +1,66 @@
+{
+  "_updated": "2026-06-09T11:31:08",
+  "_source": "fundf10.eastmoney.com",
+  "funds": {
+    "513300": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.20%"
+    },
+    "513110": {
+      "mgmt_fee": "0.80%",
+      "custody_fee": "0.20%"
+    },
+    "159655": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.15%"
+    },
+    "159660": {
+      "mgmt_fee": "0.50%",
+      "custody_fee": "0.15%"
+    },
+    "159632": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.20%"
+    },
+    "159501": {
+      "mgmt_fee": "0.50%",
+      "custody_fee": "0.10%"
+    },
+    "159513": {
+      "mgmt_fee": "0.80%",
+      "custody_fee": "0.20%"
+    },
+    "159696": {
+      "mgmt_fee": "0.50%",
+      "custody_fee": "0.10%"
+    },
+    "159529": {
+      "mgmt_fee": "0.50%",
+      "custody_fee": "0.20%"
+    },
+    "513100": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.20%"
+    },
+    "159941": {
+      "mgmt_fee": "0.80%",
+      "custody_fee": "0.20%"
+    },
+    "513650": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.15%"
+    },
+    "159612": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.15%"
+    },
+    "513500": {
+      "mgmt_fee": "0.60%",
+      "custody_fee": "0.20%"
+    },
+    "159652": {
+      "mgmt_fee": "0.50%",
+      "custody_fee": "0.10%"
+    }
+  }
+}

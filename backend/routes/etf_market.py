@@ -1,8 +1,10 @@
 """A-share ETF real-time market data blueprint using Tencent Finance."""
 
+import json
 import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -11,6 +13,27 @@ from flask import Blueprint, jsonify, request
 logger = logging.getLogger(__name__)
 
 etf_market_bp = Blueprint("etf_market", __name__, url_prefix="/api/etf-market")
+
+# ETF fee data — scraped locally from East Money fund profile pages.
+# Deployed servers read this static JSON instead of accessing Chinese sites.
+_FEE_DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "etf_fees.json"
+_fee_data: dict = {}
+
+
+def _load_fee_data() -> None:
+    """Load etf_fees.json into the module-level cache on first access."""
+    global _fee_data
+    if _fee_data:
+        return
+    try:
+        with open(_FEE_DATA_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        _fee_data = raw.get("funds", {})
+        logger.info("Loaded ETF fee data for %d funds", len(_fee_data))
+    except Exception as e:
+        logger.warning("Failed to load ETF fee data from %s: %s", _FEE_DATA_PATH, e)
+        _fee_data = {}
+
 
 _TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
 _REQUEST_TIMEOUT = 10
@@ -121,6 +144,16 @@ def _tencent_symbol(symbol: str) -> str:
     return f"sz{s}"
 
 
+def _parse_fee_pct(raw: str | None) -> float | None:
+    """Parse fee string like '0.60%' → 0.60. Returns None on failure."""
+    if not raw or not isinstance(raw, str):
+        return None
+    try:
+        return float(raw.replace("%", ""))
+    except (ValueError, TypeError):
+        return None
+
+
 @etf_market_bp.route("/quote", methods=["GET"])
 def quote():
     """Return real-time quotes for a list of ETF symbols.
@@ -158,6 +191,23 @@ def quote():
                 results.append(parsed)
         except Exception as e:
             logger.warning("Failed to parse Tencent quote line: %s", e)
+
+    # Augment with fund fee data from locally scraped JSON
+    _load_fee_data()
+    for q in results:
+        fee = _fee_data.get(q["code"], {})
+        q["mgmt_fee"] = fee.get("mgmt_fee")       # e.g. "0.60%"
+        q["custody_fee"] = fee.get("custody_fee") # e.g. "0.20%"
+        # Parse fee rates for sorting / computation
+        mgmt_val = _parse_fee_pct(q.get("mgmt_fee"))
+        custody_val = _parse_fee_pct(q.get("custody_fee"))
+        if mgmt_val is not None and custody_val is not None:
+            total = mgmt_val + custody_val
+            q["total_fee"] = round(total, 2)              # e.g. 0.80 (%)
+            q["fee_per_10k"] = round(10000 * total / 100, 2)  # e.g. 80.00 (元)
+        else:
+            q["total_fee"] = None
+            q["fee_per_10k"] = None
 
     return jsonify({
         "quotes": results,
@@ -338,6 +388,21 @@ def history():
     except Exception:
         pass
 
+    # Fund management / custody fees from locally scraped JSON
+    _load_fee_data()
+    fee_info = _fee_data.get(symbol, {})
+    mgmt_fee = fee_info.get("mgmt_fee")
+    custody_fee = fee_info.get("custody_fee")
+    # Compute total fee rate and annual cost per 10k RMB
+    mgmt_val = _parse_fee_pct(mgmt_fee)
+    custody_val = _parse_fee_pct(custody_fee)
+    if mgmt_val is not None and custody_val is not None:
+        total_fee = round(mgmt_val + custody_val, 2)
+        fee_per_10k = round(10000 * total_fee / 100, 2)
+    else:
+        total_fee = None
+        fee_per_10k = None
+
     return jsonify({
         "symbol": symbol,
         "bars": parsed,
@@ -352,6 +417,10 @@ def history():
             "ret_3m": ret_3m,
             "avg_daily_amount": avg_amount,
             "company": company,
+            "mgmt_fee": mgmt_fee,
+            "custody_fee": custody_fee,
+            "total_fee": total_fee,
+            "fee_per_10k": fee_per_10k,
         },
     })
 

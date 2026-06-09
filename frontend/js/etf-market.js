@@ -137,7 +137,7 @@
                 renderTable();
             })
             .catch(function () {
-                document.getElementById("etfBody").innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + C + 'td>' + C + 'tr>';
+                document.getElementById("etfBody").innerHTML = '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--data-negative)">获取行情失败' + C + 'td>' + C + 'tr>';
             });
     }
 
@@ -186,6 +186,12 @@
         var getSortVal = function () {
             if (_sortCol === "code") return code;
             if (_sortCol === "name") return (has && q.name) ? q.name : item.name;
+            // mgmt_fee / custody_fee are strings like "0.60%" — parse for sorting
+            if (_sortCol === "mgmt_fee" || _sortCol === "custody_fee") {
+                if (!has || !q[_sortCol]) return null;
+                var p = parseFloat(q[_sortCol]);
+                return isNaN(p) ? null : p;
+            }
             if (has) return q[_sortCol] != null ? q[_sortCol] : null;
             return null;
         };
@@ -214,6 +220,13 @@
 
         var expandedCls = (_expandedCode === code) ? " expanded" : "";
 
+        // Fee columns
+        var feeDisp = function (val, isFeeStr) {
+            if (val == null) return '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>';
+            if (isFeeStr) return '<span style="text-align:right;display:block;">' + val + C + 'span>';
+            return '<span style="text-align:right;display:block;">' + val + C + 'span>';
+        };
+
         var html =
             '<tr class="etf-row' + expandedCls + '" data-etf-code="' + code + '">' +
             "<td>" + badge + code + C + "td>" +
@@ -229,6 +242,10 @@
             "<td>" + num(has ? q.turnover : null, 2, "pct") + C + "td>" +
             "<td>" + num(has ? q.mc_total : null, 2) + C + "td>" +
             '<td><span class="' + premCls + '" style="text-align:right;display:block;">' + premDisp + C + "span>" + C + "td>" +
+            "<td>" + feeDisp(has ? q.mgmt_fee : null, true) + C + "td>" +
+            "<td>" + feeDisp(has ? q.custody_fee : null, true) + C + "td>" +
+            "<td>" + num(has ? q.total_fee : null, 2, "pct") + C + "td>" +
+            "<td>" + (has && q.fee_per_10k != null ? '<span style="text-align:right;display:block;">' + q.fee_per_10k.toFixed(0) + '元' + C + 'span>' : '<span style="color:var(--apple-text-tertiary);text-align:right;display:block;">--' + C + 'span>') + C + "td>" +
             C + "tr>";
 
         return { _html: html, _sv: getSortVal() };
@@ -334,6 +351,10 @@
         addLbl("天数"); addVal((st.days_since_listed||"?")+"天");
         addPctLbl("近1月", st.ret_1m);
         addPctLbl("近3月", st.ret_3m);
+        addLbl("管理费"); addVal(st.mgmt_fee || "--");
+        addLbl("托管费"); addVal(st.custody_fee || "--");
+        addLbl("费率合计"); addVal(st.total_fee != null ? st.total_fee.toFixed(2) + "%" : "--");
+        addLbl("万元年费"); addVal(st.fee_per_10k != null ? st.fee_per_10k.toFixed(0) + "元" : "--");
         addLbl("日均成交"); addVal(avgFmt(st.avg_daily_amount));
 
         tbody.appendChild(tr);
