@@ -68,31 +68,8 @@ function updateBacktestFrequencyUI() {
 }
 
 function populateBacktestOptions() {
-  if (!btAddSelect) return;
-
-  // The backtest backend fetches its own daily series, so it does NOT require
-  // the yearly table to have been queried. Prefer symbols that already have
-  // yearly data (avoids offering ones that failed to load), but fall back to
-  // all added symbols when no yearly query has run yet.
-  const data = _lastYearlyData ? _lastYearlyData.data : null;
-  const prev = btAddSelect.value;
-  const eligible = symbols.filter(
-    (s) => !data || (data[s.symbol] && Object.keys(data[s.symbol]).length > 0)
-  );
-
-  btAddSelect.innerHTML = eligible.length
-    ? eligible
-        .map((s) => {
-          const label = s.name ? `${s.symbol}(${s.name})` : s.symbol;
-          return `<option value="${s.symbol}">${label}</option>`;
-        })
-        .join("")
-    : '<option value="">请先在「历年涨跌幅」添加标的</option>';
-
-  // Keep the previous selection if it's still available.
-  if (prev && eligible.some((s) => s.symbol === prev)) btAddSelect.value = prev;
-
   // Default the date range from yearly data when available.
+  // The backtest symbol is a free-text input — no dependency on presets.
   if (_lastYearlyData && _lastYearlyData.years) {
     const sortedYears = [..._lastYearlyData.years].map(Number).sort((a, b) => a - b);
     const firstYear = sortedYears[0];
@@ -103,13 +80,16 @@ function populateBacktestOptions() {
 }
 
 async function runBacktest() {
-  const symbol = btAddSelect?.value;
-  const sym = symbols.find((s) => s.symbol === symbol);
-  if (!symbol || !sym) return;
+  const symbol = (btSymbolInput?.value || "").trim().toUpperCase();
+  const assetType = btTypeSelect?.value || "stock";
+  if (!symbol) {
+    showError("请输入定投标的代码");
+    return;
+  }
 
   const payload = {
     symbol,
-    type: sym.type,
+    type: assetType,
     initial_amount: parseFloat(btInitialAmount?.value) || 0,
     amount: parseFloat(btAmount?.value) || 0,
     start_date: btStartDate?.value,

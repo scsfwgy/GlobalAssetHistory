@@ -881,14 +881,19 @@
             </div>
             <div class="pc-bt-row">
                 <span class="pc-bt-label">定投标的</span>
-                <select id="btAddSelect" class="pc-bt-input" style="width:160px;"></select>
+                <input type="text" id="btSymbolInput" class="pc-bt-input" placeholder="SPY" maxlength="10" value="QQQ" style="width:120px;text-transform:uppercase;">
+                <select id="btTypeSelect" class="pc-bt-input" style="width:110px;">
+                    <option value="stock">美股</option>
+                    <option value="crypto">数字货币</option>
+                    <option value="cn_stock">A股</option>
+                </select>
                 <span class="pc-bt-label">初始投入</span>
                 <input type="number" id="pcBtInitialAmount" class="pc-bt-input" value="0" min="0" step="100">
                 <span class="pc-bt-label">每次投入</span>
                 <input type="number" id="pcBtAmount" class="pc-bt-input" value="1000" min="0" step="100">
                 <span style="font-size:12px;color:var(--apple-text-tertiary)">USD</span>
                 <span class="pc-bt-label">开始日期</span>
-                <input type="date" id="pcBtStartDate" class="pc-bt-input" style="width:150px;">
+                <input type="date" id="pcBtStartDate" class="pc-bt-input" value="2020-01-01" style="width:150px;">
                 <span class="pc-bt-label">结束日期</span>
                 <input type="date" id="pcBtEndDate" class="pc-bt-input" style="width:150px;">
             </div>
