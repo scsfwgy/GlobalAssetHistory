@@ -739,9 +739,9 @@
         .wish-card-del:hover { opacity: 1; }
 
     /* ETF market table */
-    #etfTable { table-layout: fixed; width: 100%; }
-    #etfTable th:nth-child(1) { width: 9%; }   /* 代码 */
-    #etfTable th:nth-child(2) { width: 12%; }  /* 名称 */
+    #etfTable { table-layout: auto; width: 100%; min-width: 1120px; }
+    #etfTable th:nth-child(1) { min-width: 86px; }   /* 代码 */
+    #etfTable th:nth-child(2) { min-width: 110px; }  /* 名称 */
     /* ID-scoped to beat `.transfer-table th` (specificity 0,1,1); otherwise
        header padding/text-align fall back to the generic table rule and the
        numeric headers stay left-aligned while the body cells go right. */
