@@ -6,6 +6,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from service.price_change.price_change_service import (
+    _fetch_daily_series_cached,
     fetch_daily_returns,
     fetch_yearly_returns,
     fetch_monthly_returns,
@@ -235,3 +236,275 @@ def leader_breakout_export():
     except Exception as e:
         logger.exception("Failed to export leader breakout: %s", e)
         return jsonify({"error": str(e)}), 500
+
+
+@price_change_bp.route("/vix-comparison", methods=["POST"])
+def vix_comparison():
+    """Return SPY, QQQ, VIX data aggregated by period.
+
+    Request body:
+        {"period": "1hour|daily|weekly|monthly", "count": 30}
+
+    Returns:
+        {"spy": [...], "qqq": [...], "vix": [...],
+         "latest_vix": float, "meta": {...}}
+    """
+    import concurrent.futures
+    import time as _time
+    from datetime import datetime, timezone
+
+    from service.price_change.common import YAHOO_BASE, REQUEST_TIMEOUT, ThreadLocalSession
+
+    body = request.get_json(silent=True) or {}
+    period = body.get("period", "daily").strip().lower()
+    if period not in ("1hour", "daily", "weekly", "monthly"):
+        return jsonify({"error": "period must be 1hour, daily, weekly, or monthly"}), 400
+
+    try:
+        count = int(body.get("count", body.get("days", 30)))
+    except (ValueError, TypeError):
+        count = 30
+
+    # Number of returned chart bars. Keep a bounded range for UI performance.
+    if period == "1hour":
+        count = max(5, min(count, 240))
+    else:
+        count = max(5, min(count, 2000))
+
+    # Map period to Yahoo interval
+    interval_map = {
+        "1hour": "1h",
+        "daily": "1d",
+        "weekly": "1d",
+        "monthly": "1d",
+    }
+    yahoo_interval = interval_map[period]
+
+    # For intraday periods, fetch directly from Yahoo (bypass daily cache —
+    # intraday data changes too fast to cache meaningfully).
+    # For daily/weekly/monthly, use the cached daily fetcher.
+    symbols = ["SPY", "QQQ", "^VIX"]
+    series_map = {}
+
+    def _fetch_intraday(symbol: str) -> dict:
+        """Fetch intraday bars from Yahoo Finance. Returns raw bar list."""
+        session = ThreadLocalSession()
+        session.headers.update({"User-Agent": "Mozilla/5.0"})
+        now = int(_time.time())
+        # Yahoo requires a recent period1 for intraday intervals (not epoch 0).
+        lookback = 60 * 24 * 3600
+        period1 = now - lookback
+        try:
+            resp = session.get(
+                f"{YAHOO_BASE}/{symbol}",
+                params={
+                    "period1": period1,
+                    "period2": now,
+                    "interval": yahoo_interval,
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logger.error("Yahoo intraday fetch failed for %s: %s", symbol, e)
+            return {"error": str(e)}
+
+        try:
+            result = data["chart"]["result"][0]
+            timestamps = result["timestamp"]
+            quote = result["indicators"]["quote"][0]
+            closes = quote.get("close")
+            if not closes:
+                # Try adjclose
+                adjclose = result.get("indicators", {}).get("adjclose")
+                if adjclose and adjclose[0].get("adjclose"):
+                    closes = adjclose[0]["adjclose"]
+            if not closes:
+                return {"error": "no close data"}
+            return {"timestamps": timestamps, "closes": closes}
+        except (KeyError, IndexError, TypeError) as e:
+            return {"error": f"parse error: {e}"}
+
+    if period == "1hour":
+        # Intraday: fetch directly
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(_fetch_intraday, sym): sym for sym in symbols}
+            for fut in concurrent.futures.as_completed(futures):
+                sym = futures[fut]
+                try:
+                    series_map[sym] = fut.result()
+                except Exception as e:
+                    logger.exception("Failed to fetch %s: %s", sym, e)
+                    series_map[sym] = {"error": str(e)}
+    else:
+        # Daily/weekly/monthly: use cached fetcher
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                executor.submit(_fetch_daily_series_cached, sym, "stock"): sym
+                for sym in symbols
+            }
+            for fut in concurrent.futures.as_completed(futures):
+                sym = futures[fut]
+                try:
+                    s = fut.result()
+                    if s and not s.error:
+                        series_map[sym] = {
+                            "timestamps": s.timestamps,
+                            "closes": s.closes,
+                            "source": s.source,
+                        }
+                    else:
+                        series_map[sym] = {"error": s.error if s else "no data"}
+                except Exception as e:
+                    logger.exception("Failed to fetch %s: %s", sym, e)
+                    series_map[sym] = {"error": str(e)}
+
+    def _aggregate(raw, period_type):
+        """Aggregate raw data to requested period, returning [{date, close}, ...]."""
+        if raw is None or raw.get("error"):
+            return []
+
+        timestamps = raw.get("timestamps", [])
+        closes = raw.get("closes", [])
+
+        from collections import defaultdict
+
+        # Build (datetime, close) pairs
+        pairs = []
+        for ts, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            pairs.append((dt, close))
+
+        if not pairs:
+            return []
+
+        # Limit to requested data points
+        if period_type in ("1hour", "daily"):
+            pairs = pairs[-count:]
+
+        if period_type == "1hour":
+            # Return raw hourly bars with precise timestamps
+            result = []
+            for dt, close in pairs:
+                result.append({
+                    "date": dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "close": round(close, 2),
+                })
+            return result
+
+        if period_type == "daily":
+            result = []
+            for dt, close in pairs:
+                result.append({
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "close": round(close, 2),
+                })
+            return result
+
+        if period_type == "weekly":
+            groups = defaultdict(list)
+            for dt, close in pairs:
+                iso = dt.isocalendar()
+                groups[(iso[0], iso[1])].append((dt, close))
+            result = []
+            for key in sorted(groups.keys())[-count:]:
+                last_dt, last_close = groups[key][-1]
+                result.append({
+                    "date": last_dt.strftime("%Y-%m-%d"),
+                    "close": round(last_close, 2),
+                })
+            return result
+
+        if period_type == "monthly":
+            groups = defaultdict(list)
+            for dt, close in pairs:
+                groups[(dt.year, dt.month)].append((dt, close))
+            result = []
+            for key in sorted(groups.keys())[-count:]:
+                last_dt, last_close = groups[key][-1]
+                result.append({
+                    "date": last_dt.strftime("%Y-%m-%d"),
+                    "close": round(last_close, 2),
+                })
+            return result
+
+        return []
+
+    def _valid_closes(raw):
+        if not raw or raw.get("error"):
+            return []
+        return [c for c in raw.get("closes", []) if c is not None]
+
+    def _vix_percentile(raw, lookback: int = 252):
+        closes = _valid_closes(raw)
+        if len(closes) < 2:
+            return None
+        window = closes[-lookback:]
+        latest = window[-1]
+        below_or_equal = sum(1 for c in window if c <= latest)
+        return round(below_or_equal / len(window) * 100, 1)
+
+    def _daily_return_map(raw):
+        if not raw or raw.get("error"):
+            return {}
+        items = []
+        for ts, close in zip(raw.get("timestamps", []), raw.get("closes", [])):
+            if close is None:
+                continue
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+            items.append((dt, close))
+        result = {}
+        for i in range(1, len(items)):
+            prev = items[i - 1][1]
+            curr = items[i][1]
+            if prev:
+                result[items[i][0]] = curr / prev - 1
+        return result
+
+    def _spy_vix_correlation(window: int = 30):
+        spy_returns = _daily_return_map(series_map.get("SPY"))
+        vix_returns = _daily_return_map(series_map.get("^VIX"))
+        dates = sorted(set(spy_returns) & set(vix_returns))[-window:]
+        if len(dates) < 5:
+            return None
+        xs = [spy_returns[d] for d in dates]
+        ys = [vix_returns[d] for d in dates]
+        avg_x = sum(xs) / len(xs)
+        avg_y = sum(ys) / len(ys)
+        cov = sum((x - avg_x) * (y - avg_y) for x, y in zip(xs, ys))
+        var_x = sum((x - avg_x) ** 2 for x in xs)
+        var_y = sum((y - avg_y) ** 2 for y in ys)
+        if not var_x or not var_y:
+            return None
+        return round(cov / ((var_x * var_y) ** 0.5), 3)
+
+    result = {
+        "spy": _aggregate(series_map.get("SPY"), period),
+        "qqq": _aggregate(series_map.get("QQQ"), period),
+        "vix": _aggregate(series_map.get("^VIX"), period),
+        "period": period,
+        "meta": {},
+        "stats": {},
+    }
+
+    vix_data = series_map.get("^VIX", {})
+    valid_vix = _valid_closes(vix_data)
+    result["latest_vix"] = round(valid_vix[-1], 2) if valid_vix else None
+    result["stats"] = {
+        "vix_percentile_1y": _vix_percentile(vix_data, 252),
+        "spy_vix_corr_30": _spy_vix_correlation(30) if period != "1hour" else None,
+    }
+
+    # Meta: data source and point counts
+    for sym in ("SPY", "QQQ", "^VIX"):
+        raw = series_map.get(sym, {})
+        result["meta"][sym] = {
+            "source": raw.get("source", "yahoo"),
+            "points": len(raw.get("timestamps", [])),
+            "error": raw.get("error"),
+        }
+
+    return jsonify(result)

@@ -807,6 +807,7 @@
                 <div class="logo-text">
                     <h1>GlobalAssetHistory <a href="https://qqq.jztzus.uk" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;">https://qqq.jztzus.uk</a></h1>
                     <p>价值投资，相信长期的力量。回测历史，知晓未来。</p>
+                    <p id="vixHeaderLine" class="vix-header-line" style="display:none;"><span id="vixHeaderBadge" class="vix-header-badge"></span></p>
                 </div>
             </div>
         </div>
@@ -829,6 +830,7 @@
             <button class="tab-btn" data-tab="backtest">回测</button>
             <button class="tab-btn" data-tab="crash">暴跌统计</button>
             <button class="tab-btn" data-tab="etf">标普纳指追踪</button>
+            <button class="tab-btn" data-tab="vix">VIX恐慌指数</button>
             <button class="tab-btn" data-tab="wishes">心愿墙</button>
         </nav>
 
@@ -1105,6 +1107,56 @@
         </div>
         </div><!-- /tab-etf -->
 
+        <!-- VIX恐慌指数 -->
+        <div class="tab-panel" id="tab-vix">
+        <div class="pc-monthly">
+            <div class="pc-monthly-header">
+                <span class="pc-chart-title">📊 SPY · QQQ · VIX 对比走势</span>
+                <div class="transfer-tabs" id="vixPeriodTabs" style="margin-left:auto;">
+                    <button class="transfer-tab" data-vix-period="1hour">1小时</button>
+                    <button class="transfer-tab active" data-vix-period="daily">日</button>
+                    <button class="transfer-tab" data-vix-period="weekly">周</button>
+                    <button class="transfer-tab" data-vix-period="monthly">月</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;margin-left:10px;">
+                    <span class="pc-bt-label">条数</span>
+                    <input type="number" id="vixCountInput" class="pc-bt-input" value="30" min="5" max="2000" step="5" style="width:82px;">
+                    <button id="vixReloadBtn" class="pc-btn" style="padding:6px 12px;font-size:12px;">加载</button>
+                </div>
+            </div>
+            <div class="vix-advice-card" id="vixAdviceCard" style="display:none;">
+                <div class="vix-advice-grid">
+                    <div class="vix-advice-item">
+                        <span class="vix-advice-label">最新 VIX</span>
+                        <span class="vix-advice-value" id="vixAdviceValue">--</span>
+                    </div>
+                    <div class="vix-advice-item">
+                        <span class="vix-advice-label" title="根据当前 VIX 绝对值判断：<12 极度安逸，12-15 低波动，15-20 正常区间，20-25 恐惧上升，25-30 高度恐惧，>30 极度恐慌。">情绪区间</span>
+                        <span class="vix-advice-zone" id="vixAdviceZone" title="根据当前 VIX 绝对值判断：<12 极度安逸，12-15 低波动，15-20 正常区间，20-25 恐惧上升，25-30 高度恐惧，>30 极度恐慌。">--</span>
+                    </div>
+                    <div class="vix-advice-item">
+                        <span class="vix-advice-label" title="当前 VIX 在过去约 1 年交易日中的历史位置。例如 79% 表示过去 1 年约 79% 的交易日 VIX 低于或等于当前值，数值越高代表当前恐慌程度越接近近一年高位。">1年分位</span>
+                        <span class="vix-advice-stat" id="vixPercentile" title="当前 VIX 在过去约 1 年交易日中的历史位置。例如 79% 表示过去 1 年约 79% 的交易日 VIX 低于或等于当前值，数值越高代表当前恐慌程度越接近近一年高位。">--</span>
+                    </div>
+                    <div class="vix-advice-item">
+                        <span class="vix-advice-label">SPY/VIX 30日相关</span>
+                        <span class="vix-advice-stat" id="vixCorrelation">--</span>
+                    </div>
+                    <div class="vix-advice-item vix-advice-full">
+                        <span class="vix-advice-label">操作建议</span>
+                        <span class="vix-advice-tip" id="vixAdviceTip">--</span>
+                    </div>
+                </div>
+            </div>
+            <div class="pc-loading" id="vixLoading" style="display:none;">
+                <div class="spinner"></div>
+                <span>加载中...</span>
+            </div>
+            <div class="pc-error" id="vixError" style="display:none;"></div>
+            <div id="vixChartContainer"></div>
+        </div>
+        </div><!-- /tab-vix -->
+
         <!-- 心愿墙 -->
         <div class="tab-panel" id="tab-wishes">
         <div class="pc-monthly">
@@ -1169,6 +1221,7 @@
     <script src="js/crash-stats.js"></script>
     <script src="js/leader-breakout.js"></script>
     <script src="js/etf-market.js"></script>
+    <script src="js/vix-chart.js"></script>
     <script src="js/wishes.js"></script>
     <script>
         // ─── Theme switching ───
