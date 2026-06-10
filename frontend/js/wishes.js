@@ -74,6 +74,52 @@ function _renderWishCard(wish) {
     meta.appendChild(right);
 
     card.appendChild(meta);
+
+    if (wish.reply) {
+        const replyEl = document.createElement("div");
+        replyEl.className = "wish-card-reply";
+
+        const label = document.createElement("span");
+        label.className = "wish-card-reply-label";
+        label.textContent = "管理员回复：";
+        replyEl.appendChild(label);
+
+        const text = document.createElement("span");
+        text.className = "wish-card-reply-text";
+        text.textContent = wish.reply;
+        replyEl.appendChild(text);
+
+        if (wish.reply_ts) {
+            const time = document.createElement("span");
+            time.className = "wish-card-reply-time";
+            time.textContent = " · " + _formatWishTime(wish.reply_ts);
+            replyEl.appendChild(time);
+        }
+        card.appendChild(replyEl);
+    }
+
+    if (_getAdminToken()) {
+        const form = document.createElement("div");
+        form.className = "wish-reply-form";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "wish-reply-input";
+        input.maxLength = 200;
+        input.placeholder = "管理员回复...";
+        input.value = wish.reply || "";
+        form.appendChild(input);
+
+        const btn = document.createElement("button");
+        btn.className = "pc-btn";
+        btn.style.cssText = "padding:4px 12px;font-size:12px;";
+        btn.textContent = wish.reply ? "更新回复" : "回复";
+        btn.addEventListener("click", () => replyWish(wish.id, input.value, btn));
+        form.appendChild(btn);
+
+        card.appendChild(form);
+    }
+
     return card;
 }
 
@@ -138,6 +184,31 @@ function submitWish() {
         .finally(() => { btn.disabled = false; });
 }
 
+function replyWish(wishId, text, btn) {
+    const reply = (text || "").trim();
+    if (!reply) { _showWishMsg("回复内容不能为空", true); return; }
+    if (btn) btn.disabled = true;
+    fetch(`${WISHES_ENDPOINT}/${encodeURIComponent(wishId)}/reply`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Token": _getAdminToken(),
+        },
+        body: JSON.stringify({ reply }),
+    })
+        .then(async r => {
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(data.error || "回复失败");
+            return data;
+        })
+        .then(() => {
+            _showWishMsg("回复成功", false);
+            loadWishes();
+        })
+        .catch(err => _showWishMsg(err.message || "回复失败", true))
+        .finally(() => { if (btn) btn.disabled = false; });
+}
+
 function deleteWish(wishId) {
     fetch(`${WISHES_ENDPOINT}/${encodeURIComponent(wishId)}`, {
         method: "DELETE",
@@ -159,7 +230,7 @@ function _initWishAdmin() {
     const hint = _wishEl("wishAdminHint");
 
     const refreshHint = () => {
-        hint.textContent = _getAdminToken() ? "已启用删除" : "";
+        hint.textContent = _getAdminToken() ? "已启用删除/回复" : "";
     };
     input.value = _getAdminToken();
     refreshHint();
@@ -187,8 +258,8 @@ function _initWishAdmin() {
             .then(r => {
                 if (!r.ok) throw new Error("Token 无效");
                 sessionStorage.setItem(WISH_ADMIN_KEY, val);
-                hint.textContent = "已启用删除";
-                loadWishes();  // re-render to show delete buttons
+                hint.textContent = "已启用删除/回复";
+                loadWishes();  // re-render to show admin actions
             })
             .catch(() => {
                 sessionStorage.removeItem(WISH_ADMIN_KEY);

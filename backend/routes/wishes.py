@@ -11,6 +11,7 @@ from service.wishes.wishes_service import (
     check_rate_limit,
     delete_wish,
     list_wishes,
+    reply_wish,
     verify_admin_token,
 )
 
@@ -81,6 +82,25 @@ def post_wish():
     except Exception as e:
         logger.exception("Failed to add wish: %s", e)
         return jsonify({"error": str(e)}), 500
+
+
+@wishes_bp.route("/<wish_id>/reply", methods=["PATCH"])
+def reply_to_wish(wish_id):
+    """Admin-only reply/update. Requires header X-Admin-Token."""
+    token = request.headers.get("X-Admin-Token", "")
+    body = request.get_json(silent=True) or {}
+    try:
+        wish = reply_wish(wish_id, body.get("reply", ""), token)
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to reply to wish: %s", e)
+        return jsonify({"error": str(e)}), 500
+    if not wish:
+        return jsonify({"error": "未找到该心愿"}), 404
+    return jsonify(wish)
 
 
 @wishes_bp.route("/<wish_id>", methods=["DELETE"])

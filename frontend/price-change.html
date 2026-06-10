@@ -738,6 +738,53 @@
         }
         .wish-card-del:hover { opacity: 1; }
 
+        .wish-card-reply {
+            background: rgba(0, 113, 227, 0.08);
+            border-left: 3px solid var(--apple-blue);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--apple-text-secondary);
+            word-break: break-word;
+        }
+
+        .wish-card-reply-label {
+            color: var(--apple-blue);
+            font-weight: 600;
+        }
+
+        .wish-card-reply-text {
+            color: var(--apple-text-primary);
+            white-space: pre-wrap;
+        }
+
+        .wish-card-reply-time {
+            color: var(--apple-text-tertiary);
+            font-size: 11px;
+        }
+
+        .wish-reply-form {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .wish-reply-input {
+            flex: 1;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            background: var(--apple-surface-1);
+            border: 1px solid var(--apple-divider);
+            border-radius: 7px;
+            color: var(--apple-text-primary);
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+        }
+        .wish-reply-input:focus { border-color: var(--apple-blue); }
+
     /* ETF market table */
     #etfTable { table-layout: auto; width: 100%; min-width: 1120px; }
     #etfTable th:nth-child(1) { min-width: 86px; }   /* 代码 */

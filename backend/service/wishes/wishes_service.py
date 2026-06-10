@@ -145,6 +145,47 @@ def delete_wish(wish_id: str, token: Optional[str]) -> bool:
     return True
 
 
+def reply_wish(wish_id: str, reply_text: str, token: Optional[str]) -> Optional[dict]:
+    """Admin-only reply/update. Raises PermissionError if token is invalid."""
+    if not verify_admin_token(token):
+        raise PermissionError("无权限回复")
+
+    reply = _clean_text(reply_text)
+    if not reply:
+        raise ValueError("回复内容不能为空")
+    if len(reply) > MAX_TEXT:
+        raise ValueError(f"回复内容不能超过 {MAX_TEXT} 字")
+
+    if cache_store.is_enabled():
+        raw_items = cache_store.cache_lrange(_WISHES_KEY, 0, MAX_WISHES - 1)
+        for raw in raw_items:
+            try:
+                wish = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if wish.get("id") != wish_id:
+                continue
+            wish["reply"] = reply
+            wish["reply_ts"] = int(time.time())
+            removed = cache_store.cache_lrem(_WISHES_KEY, 1, raw)
+            if removed:
+                cache_store.cache_lpush(_WISHES_KEY, json.dumps(wish, ensure_ascii=False))
+                cache_store.cache_ltrim(_WISHES_KEY, 0, MAX_WISHES - 1)
+            return wish
+        return None
+
+    with _file_lock:
+        wishes = _read_file_wishes()
+        for wish in wishes:
+            if wish.get("id") != wish_id:
+                continue
+            wish["reply"] = reply
+            wish["reply_ts"] = int(time.time())
+            _write_file_wishes(wishes)
+            return wish
+    return None
+
+
 def check_rate_limit(ip: Optional[str]) -> bool:
     """Return True if this IP is allowed to post, False if over the limit.
     Counts posts per IP within a rolling window."""
