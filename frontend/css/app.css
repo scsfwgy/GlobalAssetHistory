@@ -6,11 +6,15 @@
             --apple-surface-3: #28282a;
             --apple-text-primary: #ffffff;
             --apple-text-secondary: rgba(255, 255, 255, 0.6);
-            --apple-text-tertiary: rgba(255, 255, 255, 0.4);
+            --apple-text-tertiary: rgba(255, 255, 255, 0.45);
             --apple-blue: #0071e3;
+            --apple-blue-soft: rgba(0, 113, 227, 0.08);
+            --apple-accent-warm: #ff9f0a;
+            --apple-accent-teal: #5ac8fa;
             --apple-divider: rgba(255, 255, 255, 0.12);
             --apple-card-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
-            /* Functional data colors for Chart.js (Apple palette) */
+            --apple-sticky-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+            /* Functional data colors */
             --data-bitget: #2997ff;
             --data-binance: #e8a43e;
             --data-positive: #30d158;
@@ -35,6 +39,24 @@
             --apple-chart-text-dim: rgba(255, 255, 255, 0.50);
             --apple-chart-crosshair: rgba(255, 255, 255, 0.32);
             --apple-chart-color: rgba(255, 255, 255, 0.80);
+            /* Type scale */
+            --text-xs: 12px;
+            --text-sm: 13px;
+            --text-base: 14px;
+            --text-lg: 16px;
+            --text-xl: 22px;
+            --text-2xl: 32px;
+            /* Spacing scale */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 24px;
+            --space-2xl: 32px;
+            /* Transition tokens */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.25s ease;
+            --transition-slow: 0.4s ease;
         }
 
         [data-theme="light"] {
@@ -45,9 +67,11 @@
             --apple-surface-3: #fafafa;
             --apple-text-primary: #1d1d1f;
             --apple-text-secondary: rgba(0, 0, 0, 0.55);
-            --apple-text-tertiary: rgba(0, 0, 0, 0.35);
+            --apple-text-tertiary: rgba(0, 0, 0, 0.4);
+            --apple-blue-soft: rgba(0, 113, 227, 0.06);
             --apple-divider: rgba(0, 0, 0, 0.10);
             --apple-card-shadow: rgba(0, 0, 0, 0.04) 0 1px 8px 0px;
+            --apple-sticky-shadow: 2px 0 6px rgba(0, 0, 0, 0.08);
             /* Structural overlay colors (light) */
             --apple-header-bg: rgba(255, 255, 255, 0.72);
             --apple-overlay-subtle: rgba(0, 0, 0, 0.02);
@@ -77,24 +101,26 @@
             color: var(--apple-text-primary);
             letter-spacing: -0.01em;
             min-height: 100vh;
+            font-size: var(--text-sm);
+            line-height: 1.5;
         }
 
-        /* Header — hero-style brand area */
+        /* Header — compact brand area */
         .header {
             position: relative;
             z-index: 10;
-            min-height: 104px;
-            padding: 22px 32px;
+            min-height: 64px;
+            padding: 14px 24px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 24px;
             background:
                 radial-gradient(circle at 18% 0%, var(--vix-header-glow-a, rgba(0, 113, 227, 0.24)), transparent 34%),
                 radial-gradient(circle at 82% 18%, var(--vix-header-glow-b, rgba(90, 200, 250, 0.16)), transparent 32%),
                 linear-gradient(180deg, var(--vix-header-tint, var(--apple-surface-1)), var(--apple-bg));
             border-bottom: 1px solid var(--apple-divider);
-            transition: background 0.45s ease;
+            transition: background var(--transition-slow);
         }
 
         .header.vix-bg-extreme-low {
@@ -159,7 +185,7 @@
             font-size: 13px;
             color: var(--apple-text-secondary);
             text-decoration: none;
-            transition: color 0.15s, border-color 0.15s, background 0.15s;
+            transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
         }
 
         .nav-links a:hover {
@@ -174,18 +200,18 @@
         }
 
         .logo-text h1 {
-            font-size: 26px;
+            font-size: 22px;
             font-weight: 700;
             color: var(--apple-text-primary);
-            letter-spacing: -0.6px;
-            line-height: 1.12;
+            letter-spacing: -0.5px;
+            line-height: 1.15;
         }
 
         .logo-text h1 a {
             display: block;
             width: fit-content;
-            margin-top: 6px;
-            font-size: 13px;
+            margin-top: 4px;
+            font-size: var(--text-xs);
             font-weight: 500;
             letter-spacing: -0.01em;
             color: var(--apple-blue) !important;
@@ -193,15 +219,15 @@
         }
 
         .logo-text p {
-            font-size: 14px;
+            font-size: var(--text-xs);
             color: var(--apple-text-secondary);
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         .logo-text p a {
             color: var(--apple-blue);
             text-decoration: none;
-            transition: opacity 0.15s;
+            transition: opacity var(--transition-fast);
         }
 
         .logo-text p a:hover { opacity: 0.8; text-decoration: underline; }
@@ -255,7 +281,7 @@
             flex-shrink: 0;
             background: var(--apple-text-tertiary);
             border-radius: 50%;
-            transition: background 0.3s;
+            transition: background var(--transition-normal);
         }
 
         .status-dot.connected {
@@ -331,7 +357,7 @@
             font-weight: 500;
             border-radius: 7px;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all var(--transition-fast);
         }
 
         .toggle-btn:hover { color: var(--apple-text-primary); }
@@ -347,7 +373,7 @@
             font-size: 13px;
             cursor: pointer;
             outline: none;
-            transition: border-color 0.15s ease;
+            transition: border-color var(--transition-fast);
             min-width: 140px;
         }
 
@@ -367,7 +393,7 @@
             color: var(--apple-text-primary);
             font-size: 13px;
             outline: none;
-            transition: border-color 0.15s ease;
+            transition: border-color var(--transition-fast);
         }
 
         .token-key-input:focus {
@@ -384,7 +410,7 @@
             font-size: 13px;
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all var(--transition-fast);
         }
 
         .token-key-btn.primary {
@@ -587,7 +613,7 @@
         }
 
         .change-chip {
-            font-size: 11px;
+            font-size: var(--text-xs);
             font-weight: 500;
             padding: 3px 8px;
             border-radius: 5px;
@@ -601,7 +627,7 @@
 
         .change-chip .chip-label {
             color: var(--apple-text-secondary);
-            font-size: 10px;
+            font-size: var(--text-xs);
         }
 
         .change-chip .chip-value {
@@ -620,7 +646,7 @@
 
         .hero-change-chip .chip-label {
             color: var(--apple-text-secondary);
-            font-size: 11px;
+            font-size: var(--text-xs);
         }
 
         .hero-change-chip .chip-value {
@@ -631,7 +657,7 @@
             .hero-value { font-size: 32px; letter-spacing: -0.6px; }
             .hero-card { padding: 20px 16px; }
             .hero-change { gap: 6px; }
-            .hero-change-chip { font-size: 11px; padding: 3px 8px; }
+            .hero-change-chip { font-size: var(--text-xs); padding: 3px 8px; }
         }
 
         /* Charts section */
@@ -859,7 +885,7 @@
             font-weight: 500;
             border-radius: 7px;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all var(--transition-fast);
             white-space: nowrap;
             flex-shrink: 0;
         }
@@ -915,7 +941,7 @@
             display: inline-block;
             padding: 2px 8px;
             border-radius: 5px;
-            font-size: 11px;
+            font-size: var(--text-xs);
             font-weight: 600;
         }
 
@@ -1152,7 +1178,7 @@
             height: 100%;
             border-radius: inherit;
             background: linear-gradient(90deg, rgba(255, 159, 10, 0.95), rgba(48, 209, 88, 0.95));
-            transition: width 0.2s ease;
+            transition: width var(--transition-fast);
         }
 
         .token-table-card {
@@ -1183,7 +1209,7 @@
             border-radius: 999px;
             background: var(--apple-overlay-medium);
             color: var(--apple-text-primary);
-            font-size: 11px;
+            font-size: var(--text-xs);
             font-weight: 600;
         }
 
@@ -1221,7 +1247,7 @@
             font-size: 13px;
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: all var(--transition-fast);
         }
 
         .page-btn:disabled {
@@ -1328,10 +1354,10 @@
         }
 
         @media (max-width: 480px) {
-            .logo-text h1 { font-size: 17px; }
+            .logo-text h1 { font-size: 18px; }
             .logo-text p { display: none; }
             .stat-value { font-size: 18px; }
-            .stat-label { font-size: 11px; }
+            .stat-label { font-size: var(--text-xs); }
         }
 
         /* ─── VIX Fear Index ─── */
@@ -1420,7 +1446,7 @@
         }
 
         .vix-advice-label {
-            font-size: 11px;
+            font-size: var(--text-xs);
             color: var(--apple-text-tertiary);
         }
 
