@@ -35,7 +35,7 @@ const error = $("pcError");
 const loading = $("pcLoading");
 const metaInfo = $("pcMetaInfo");
 const statusDot = $("statusDot");
-const statusText = $("statusText");
+const statusText = $("settingsConnLabel");
 
 const yearSelect = $("pcYearSelect");
 const yearList = $("pcYearList");
