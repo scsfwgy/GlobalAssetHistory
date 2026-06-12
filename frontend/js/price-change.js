@@ -626,6 +626,152 @@ async function init() {
   fetch(`${API_BASE}/api/health`)
     .then((r) => r.ok && setConnected(true))
     .catch(() => setConnected(false));
+
+  // ── Symbol quick buttons (preset shortcuts) ──
+  var QUICK_PRESET_KEYS = {
+    stock: ['core_us_etf', 'aggressive_us_etf', 'hot_us_stocks'],
+    cn_stock: ['cn_index', 'cn_etf_nasdaq100', 'cn_etf_sp500', 'cn_etf_others'],
+    crypto: ['hot_crypto']
+  };
+
+  function renderSymbolQuick(containerId, type, targetInputId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var presetKeys = QUICK_PRESET_KEYS[type] || [];
+    var html = '';
+    presetKeys.forEach(function (key) {
+      var preset = PRESETS.find(function (p) { return p.key === key; });
+      if (!preset) return;
+      html += '<button class="pc-symbol-quick-chip" data-preset-key="' + key + '">' + preset.label + '</button>';
+    });
+    container.innerHTML = html;
+
+    // Click handler
+    container.querySelectorAll('.pc-symbol-quick-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var pKey = this.dataset.presetKey;
+        var preset = PRESETS.find(function (p) { return p.key === pKey; });
+        if (!preset || !preset.symbols) return;
+        if (targetInputId === 'pcSymbolInput') {
+          // Main page: add all symbols from the preset
+          preset.symbols.forEach(function (s) {
+            addSymbol(s.symbol, s.type);
+          });
+        } else {
+          // Backtest / crash: fill the input with the first symbol
+          var input = document.getElementById(targetInputId);
+          if (input && preset.symbols.length > 0) {
+            input.value = preset.symbols[0].symbol;
+            input.focus();
+          }
+        }
+      });
+    });
+  }
+
+  // Init quick buttons
+  if (document.getElementById('pcSymbolQuick')) {
+    renderSymbolQuick('pcSymbolQuick', 'stock', 'pcSymbolInput');
+    var pcTypeSel = document.getElementById('pcTypeSelect');
+    if (pcTypeSel) {
+      pcTypeSel.addEventListener('change', function () {
+        renderSymbolQuick('pcSymbolQuick', pcTypeSel.value, 'pcSymbolInput');
+      });
+    }
+  }
+
+  // ── Autocomplete: build search index from all presets ──
+  var _acIndex = [];
+  var _acSeen = {};
+  (PRESETS || []).forEach(function (p) {
+    (p.symbols || []).forEach(function (s) {
+      var key = s.symbol + '|' + s.type;
+      if (_acSeen[key]) return;
+      _acSeen[key] = true;
+      _acIndex.push({ code: s.symbol, name: s.name || '', type: s.type });
+    });
+  });
+
+  function _acFilter(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    return _acIndex.filter(function (s) {
+      return s.code.toLowerCase().indexOf(q) !== -1 ||
+             (s.name && s.name.toLowerCase().indexOf(q) !== -1);
+    }).slice(0, 10);
+  }
+
+  function _acRenderDrop(items) {
+    if (!items.length) return '';
+    return items.map(function (it, i) {
+      var label = it.name ? '<span class="ac-name">' + it.name + '</span>' : '';
+      return '<div class="pc-ac-item" data-idx="' + i + '">' +
+             '<span class="ac-code">' + it.code + '</span>' + label +
+             '</div>';
+    }).join('');
+  }
+
+  function attachAutocomplete(inputEl, typeEl) {
+    if (!inputEl) return;
+    var wrap = document.createElement('span');
+    wrap.style.position = 'relative';
+    inputEl.parentNode.insertBefore(wrap, inputEl);
+    wrap.appendChild(inputEl);
+
+    var drop = document.createElement('div');
+    drop.className = 'pc-ac-dropdown';
+    wrap.appendChild(drop);
+
+    var items = [], activeIdx = -1;
+
+    function showDropdown() {
+      var q = inputEl.value || '';
+      items = _acFilter(q);
+      drop.innerHTML = _acRenderDrop(items);
+      activeIdx = -1;
+      drop.style.display = items.length ? 'block' : 'none';
+    }
+
+    function selectItem(it) {
+      inputEl.value = it.code;
+      if (typeEl) typeEl.value = it.type;
+      drop.style.display = 'none';
+      if (inputEl.id === 'pcSymbolInput' && typeof addSymbol === 'function') {
+        addSymbol(it.code, it.type);
+      }
+    }
+
+    inputEl.addEventListener('input', showDropdown);
+    inputEl.addEventListener('focus', showDropdown);
+
+    inputEl.addEventListener('keydown', function (e) {
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); _acHighlight(drop, activeIdx); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); _acHighlight(drop, activeIdx); }
+      else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); selectItem(items[activeIdx]); }
+      else if (e.key === 'Escape') { drop.style.display = 'none'; }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!wrap.contains(e.target)) drop.style.display = 'none';
+    });
+
+    drop.addEventListener('click', function (e) {
+      var el = e.target.closest('.pc-ac-item');
+      if (el) { selectItem(items[parseInt(el.dataset.idx, 10)]); }
+    });
+  }
+
+  function _acHighlight(drop, idx) {
+    drop.querySelectorAll('.pc-ac-item').forEach(function (el, i) {
+      el.classList.toggle('active', i === idx);
+    });
+  }
+
+  // Bind autocomplete
+  attachAutocomplete(document.getElementById('pcSymbolInput'), document.getElementById('pcTypeSelect'));
+  attachAutocomplete(document.getElementById('btSymbolInput'), document.getElementById('btTypeSelect'));
+  attachAutocomplete(document.getElementById('crashSymbol'), document.getElementById('crashType'));
 }
 
 document.addEventListener("DOMContentLoaded", init);

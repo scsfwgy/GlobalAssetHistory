@@ -107,8 +107,14 @@ kill_port_if_needed() {
     pids=$(lsof -ti :"$port" 2>/dev/null || true)
     if [ -n "$pids" ]; then
         echo "端口 $port 被 PID $pids 占用，正在释放..."
-        kill $pids 2>/dev/null || true
-        sleep 1
+        kill -9 $pids 2>/dev/null || true
+        sleep 0.5
+        # Double-check: if still occupied, kill again
+        pids=$(lsof -ti :"$port" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            kill -9 $pids 2>/dev/null || true
+            sleep 0.5
+        fi
     fi
 }
 

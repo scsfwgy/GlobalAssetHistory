@@ -518,6 +518,48 @@
             font-size: var(--text-xs); color: var(--apple-text-tertiary);
         }
 
+        /* ─── Symbol quick buttons (preset shortcuts) ─── */
+        .pc-symbol-quick {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        }
+        .pc-symbol-quick-chip {
+            padding: 3px 10px;
+            background: var(--apple-surface-1);
+            border: 1px solid var(--apple-divider);
+            border-radius: var(--radius-full);
+            color: var(--apple-text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            user-select: none;
+            white-space: nowrap;
+        }
+        .pc-symbol-quick-chip:hover {
+            border-color: var(--apple-blue);
+            color: var(--apple-text-primary);
+        }
+
+        /* ─── Autocomplete dropdown ─── */
+        .pc-ac-dropdown {
+            position: absolute; z-index: 200;
+            background: var(--apple-surface-1);
+            border: 1px solid var(--apple-divider);
+            border-radius: var(--radius-md);
+            box-shadow: var(--apple-shadow-popover);
+            max-height: 240px; overflow-y: auto;
+            min-width: 180px; display: none;
+        }
+        .pc-ac-item {
+            padding: 6px 12px; cursor: pointer;
+            font-size: 13px; color: var(--apple-text-primary);
+            display: flex; gap: 6px; align-items: baseline;
+        }
+        .pc-ac-item:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+        .pc-ac-item:last-child { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+        .pc-ac-item:hover, .pc-ac-item.active { background: var(--apple-blue-soft); }
+        .pc-ac-item .ac-name { color: var(--apple-text-secondary); font-size: 12px; }
+        .pc-ac-item .ac-code { font-weight: 600; }
+
         .pc-month-num {
             font-size: var(--text-xs);
             color: var(--apple-text-tertiary);
@@ -1102,6 +1144,7 @@
                 </select>
                 <button id="pcAddBtn" class="pc-btn primary">添加</button>
                 <button id="pcClearBtn" class="pc-btn danger">清空</button>
+                <div class="pc-symbol-quick" id="pcSymbolQuick"></div>
             </div>
             <div class="control-group">
                 <span class="control-label">统计周期</span>
