@@ -623,6 +623,16 @@
             }
         }
 
+        /* Settings dropdown: anchor from left on small screens since the
+           button moves to the left side of the header (flex-start). */
+        @media (max-width: 768px) {
+            .header-settings-menu {
+                right: auto;
+                left: 0;
+                max-width: calc(100vw - 32px);
+            }
+        }
+
         /* ─── Header brand links ─── */
         .nav-links a {
             display: inline-flex;
