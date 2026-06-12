@@ -49,6 +49,19 @@ function updateBacktestFrequencyUI() {
     return;
   }
 
+  if (mode === "yearly") {
+    // yearly: interval is useful (every-N-years), but day-of-month/weekday are not
+    const intervalLabel = btInterval.previousElementSibling;
+    if (intervalLabel) intervalLabel.style.display = "";
+    btInterval.style.display = "";
+    btDayOfMonth.style.display = "none";
+    btDayOfMonthLabel.style.display = "none";
+    btWeekday.style.display = "none";
+    btWeekdayLabel.style.display = "none";
+    btAmount.previousElementSibling && (btAmount.previousElementSibling.textContent = "每次投入");
+    return;
+  }
+
   const intervalLabel = btInterval.previousElementSibling;
   if (intervalLabel) intervalLabel.style.display = "";
   btInterval.style.display = "";
@@ -422,3 +435,19 @@ function renderBacktestResult(symbol, result) {
   if (btResult) btResult.style.display = "";
   if (btWrap) btWrap.style.display = "";
 }
+
+// ─── Advanced toggle ───
+(function () {
+  var advCheckbox = document.getElementById("pcBtAdvanced");
+  if (!advCheckbox) return;
+  advCheckbox.addEventListener("change", function () {
+    var show = this.checked;
+    document.querySelectorAll(".pc-bt-advanced").forEach(function (el) {
+      if (show) {
+        el.classList.add("show");
+      } else {
+        el.classList.remove("show");
+      }
+    });
+  });
+})();

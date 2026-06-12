@@ -487,6 +487,37 @@
         .pc-bt-table .bt-val-positive { color: var(--data-positive); }
         .pc-bt-table .bt-val-negative { color: var(--data-negative); }
 
+        /* ─── Advanced toggle ─── */
+        .pc-bt-advanced { display: none; }
+        .pc-bt-advanced.show { display: contents; }
+
+        .pc-bt-adv-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            cursor: pointer; user-select: none; vertical-align: middle;
+        }
+        .pc-bt-adv-toggle input[type="checkbox"] {
+            position: absolute; opacity: 0; width: 0; height: 0;
+        }
+        .pc-bt-adv-slider {
+            position: relative; width: 34px; height: 20px;
+            border-radius: 10px; background: var(--apple-overlay-medium);
+            transition: background 0.2s;
+        }
+        .pc-bt-adv-slider::after {
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #fff; transition: transform 0.2s;
+        }
+        .pc-bt-adv-toggle input:checked + .pc-bt-adv-slider {
+            background: var(--apple-blue);
+        }
+        .pc-bt-adv-toggle input:checked + .pc-bt-adv-slider::after {
+            transform: translateX(14px);
+        }
+        .pc-bt-adv-label {
+            font-size: var(--text-xs); color: var(--apple-text-tertiary);
+        }
+
         .pc-month-num {
             font-size: var(--text-xs);
             color: var(--apple-text-tertiary);
@@ -1156,12 +1187,13 @@
                     <option value="daily">按日</option>
                     <option value="weekly">按周</option>
                     <option value="monthly" selected>按月</option>
+                    <option value="yearly">按年</option>
                 </select>
-                <span class="pc-bt-label">间隔</span>
-                <input type="number" id="pcBtInterval" class="pc-bt-input" value="1" min="1" step="1">
-                <span class="pc-bt-label" id="pcBtDayOfMonthLabel">月内日期</span>
-                <input type="number" id="pcBtDayOfMonth" class="pc-bt-input" value="1" min="1" max="31" step="1">
-                <span class="pc-bt-label" id="pcBtWeekdayLabel">周几</span>
+                <span class="pc-bt-advanced"><span class="pc-bt-label">间隔</span>
+                <input type="number" id="pcBtInterval" class="pc-bt-input" value="1" min="1" step="1"></span>
+                <span class="pc-bt-advanced"><span class="pc-bt-label" id="pcBtDayOfMonthLabel">月内日期</span>
+                <input type="number" id="pcBtDayOfMonth" class="pc-bt-input" value="1" min="1" max="31" step="1"></span>
+                <span class="pc-bt-advanced"><span class="pc-bt-label" id="pcBtWeekdayLabel">周几</span>
                 <select id="pcBtWeekday" class="pc-bt-input" style="width:100px;">
                     <option value="0">周一</option>
                     <option value="1">周二</option>
@@ -1170,12 +1202,17 @@
                     <option value="4">周五</option>
                     <option value="5">周六</option>
                     <option value="6">周日</option>
-                </select>
-                <span class="pc-bt-label" id="pcBtSampleSizeLabel">显示点数</span>
-                <input type="number" id="pcBtSampleSize" class="pc-bt-input" value="120" min="20" max="500" step="10">
-                <span class="pc-bt-label">动画秒数</span>
-                <input type="number" id="pcBtAnimSeconds" class="pc-bt-input" value="5" min="0" max="30" step="0.5">
+                </select></span>
+                <span class="pc-bt-advanced"><span class="pc-bt-label" id="pcBtSampleSizeLabel">显示点数</span>
+                <input type="number" id="pcBtSampleSize" class="pc-bt-input" value="120" min="20" max="500" step="10"></span>
+                <span class="pc-bt-advanced"><span class="pc-bt-label">动画秒数</span>
+                <input type="number" id="pcBtAnimSeconds" class="pc-bt-input" value="5" min="0" max="30" step="0.5"></span>
                 <button id="pcBtRun" class="pc-btn primary" style="padding:7px 14px;">开始回测</button>
+                <label class="pc-bt-adv-toggle">
+                    <input type="checkbox" id="pcBtAdvanced">
+                    <span class="pc-bt-adv-slider"></span>
+                    <span class="pc-bt-adv-label">高级</span>
+                </label>
             </div>
             <div id="pcBtResult" style="display:none;">
                 <div id="btChart" style="margin-bottom:20px;"></div>

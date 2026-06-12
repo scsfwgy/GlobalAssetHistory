@@ -192,8 +192,8 @@ def _compute_money_weighted_annualized_return(
 
 def _normalize_frequency(frequency: str) -> str:
     clean = (frequency or "monthly").strip().lower()
-    if clean not in {"once", "daily", "weekly", "monthly"}:
-        raise ValueError("frequency must be one of once, daily, weekly, monthly")
+    if clean not in {"once", "daily", "weekly", "monthly", "yearly"}:
+        raise ValueError("frequency must be one of once, daily, weekly, monthly, yearly")
     return clean
 
 
@@ -254,6 +254,20 @@ def _generate_schedule_dates(
         while current <= end_date:
             schedule.append(current)
             current += step
+        return schedule
+
+    if frequency == "yearly":
+        current = start_date
+        while current <= end_date:
+            schedule.append(current)
+            target_year = current.year + interval
+            try:
+                current = date(target_year, current.month, current.day)
+            except ValueError:
+                # Leap day → clamp to last day of month in non-leap year
+                import calendar as _cal
+                last_day = _cal.monthrange(target_year, current.month)[1]
+                current = date(target_year, current.month, last_day)
         return schedule
 
     target_day = anchor_day or start_date.day
