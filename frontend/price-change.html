@@ -1164,9 +1164,9 @@
             <button class="tab-btn" data-tab="backtest">回测</button>
             <button class="tab-btn" data-tab="crash">暴跌统计</button>
             <button class="tab-btn" data-tab="etf">标普纳指追踪</button>
-            <button class="tab-btn" data-tab="leader">A股龙头统计</button>
             <button class="tab-btn" data-tab="vix">VIX恐慌指数</button>
             <button class="tab-btn" data-tab="wishes">心愿墙</button>
+            <button class="tab-btn" data-tab="leader">A股龙头统计</button>
         </nav>
 
         <div class="tab-panel active" id="tab-yearly">
@@ -1358,8 +1358,8 @@
         <div class="tab-panel" id="tab-leader">
         <div class="pc-monthly">
             <div class="pc-monthly-header">
-                <span class="pc-chart-title">🐉 A股龙头股回调冲击新高统计</span>
-                <span style="font-size:var(--text-xs);color:var(--apple-text-tertiary);">沪深主板 · 不含ST/创业板/科创板 · 连续涨停≥6天 · 按首次涨停日期从近到远</span>
+                <span class="pc-chart-title">🐉 A股龙头股回调冲击新高统计 <span style="font-size:11px;color:var(--apple-text-tertiary);font-weight:400;">— 该功能为用户付费功能。所有用户付费功能，完成后都会免费提供给大家。</span></span>
+                <span style="font-size:var(--text-xs);color:var(--apple-text-tertiary);">沪深主板 · 不含ST/创业板/科创板 · 连续涨停≥6天 · 按首次涨停日期从近到远 · 扫描约2分钟，后台运行，完成后刷新可见</span>
             </div>
             <div class="pc-bt-row">
                 <span class="pc-bt-label">开始日期</span>
@@ -1376,6 +1376,12 @@
             <div class="lb-progress-wrap" id="lbProgressWrap" style="display:none; margin-bottom: 12px;">
                 <div class="lb-progress-track"><div class="lb-progress-fill" id="lbProgress" style="width:0%;"></div></div>
                 <div id="lbProgressText" style="font-size:12px;color:var(--apple-text-secondary);margin-top:6px;">扫描中...</div>
+            </div>
+            <div class="lb-status-wrap" id="lbStatusWrap" style="display:none; margin-bottom: 12px; padding: 12px 16px; background: rgba(0,113,227,0.06); border: 1px solid rgba(0,113,227,0.2); border-radius: var(--radius-md);">
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--apple-text-primary);">
+                    <span style="display:inline-block;width:14px;height:14px;border:2px solid var(--apple-blue);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
+                    <span id="lbStatusText">扫描进行中...</span>
+                </span>
             </div>
             <div class="crash-error" id="lbError" style="display:none;"></div>
             <div class="pc-loading" id="lbLoading" style="display:none;">

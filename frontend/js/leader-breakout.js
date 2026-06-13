@@ -1,4 +1,11 @@
-/** A-share leader breakout analysis — 龙头股回调冲击新高统计. */
+/** A-share leader breakout analysis — 龙头股回调冲击新高统计.
+ *
+ *  Flow:
+ *   1. POST triggers background scan → returns immediately
+ *   2. If "scanning": poll GET every 5s until results arrive
+ *   3. If results cached: render immediately
+ *   4. On tab activation: auto-GET to check for cached results
+ */
 
 (function () {
     /* ── DOM refs ── */
@@ -11,124 +18,217 @@
     const tableHead = document.getElementById("lbTableHead");
     const tableWrap = document.getElementById("lbTableWrap");
     const emptyEl = document.getElementById("lbEmpty");
-    const progressWrap = document.getElementById("lbProgressWrap");
-    const progressBar = document.getElementById("lbProgress");
-    const progressText = document.getElementById("lbProgressText");
+    const statusWrap = document.getElementById("lbStatusWrap");
+    const statusText = document.getElementById("lbStatusText");
     const btnExport = document.getElementById("lbExportBtn");
 
-    var _progressInterval = null;
+    var _pollTimer = null;
+    var _lastParams = null;
 
-    /* ── Run scan ── */
-    function run() {
-        setLoading(true);
-        hideError();
-        resultWrap.style.display = "none";
-        startProgress();
+    /* ── Helpers ── */
 
-        var body = {
-            start_date: "2024-09-30",
-            threshold: 9.5,
-            min_consecutive_days: 6,
-            workers: 10,
-        };
-        // Read optional inputs if present
+    function getParams() {
         var startEl = document.getElementById("lbStartDate");
         var threshEl = document.getElementById("lbThreshold");
         var minDaysEl = document.getElementById("lbMinDays");
-        if (startEl) body.start_date = startEl.value || "2024-09-30";
-        if (threshEl) body.threshold = parseFloat(threshEl.value) || 9.5;
-        if (minDaysEl) body.min_consecutive_days = parseInt(minDaysEl.value) || 6;
+        return {
+            start_date: startEl ? (startEl.value || "2024-09-30") : "2024-09-30",
+            threshold: threshEl ? (parseFloat(threshEl.value) || 9.5) : 9.5,
+            min_consecutive_days: minDaysEl ? (parseInt(minDaysEl.value, 10) || 6) : 6,
+        };
+    }
+
+    function buildGetUrl(params) {
+        return LEADER_BREAKOUT_ENDPOINT + "?start_date=" + encodeURIComponent(params.start_date) +
+            "&threshold=" + params.threshold +
+            "&min_days=" + params.min_consecutive_days;
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function setLoading(show) {
+        if (loadingEl) loadingEl.style.display = show ? "flex" : "none";
+        if (show && resultWrap) resultWrap.style.display = "none";
+    }
+
+    function showError(msg) {
+        if (!errorEl) return;
+        errorEl.textContent = msg;
+        errorEl.style.display = "block";
+    }
+
+    function hideError() {
+        if (errorEl) errorEl.style.display = "none";
+    }
+
+    function showStatus(msg, isScanning) {
+        if (!statusWrap) return;
+        statusWrap.style.display = "block";
+        if (statusText) statusText.textContent = msg || "";
+        statusWrap.className = "lb-status-wrap" + (isScanning ? " scanning" : "");
+    }
+
+    function hideStatus() {
+        if (statusWrap) statusWrap.style.display = "none";
+    }
+
+    function stopPolling() {
+        if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    }
+
+    /* ── Poll for results ── */
+
+    function startPolling(params) {
+        stopPolling();
+        showStatus("扫描进行中，约2分钟…完成后自动刷新结果", true);
+
+        _pollTimer = setInterval(function () {
+            fetch(buildGetUrl(params))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "scanning") {
+                        showStatus("扫描进行中，约2分钟…完成后自动刷新结果", true);
+                        return;
+                    }
+                    if (data.status === "idle" || data.status === "error") {
+                        // Still waiting for results
+                        return;
+                    }
+                    // Got results or error
+                    stopPolling();
+                    hideStatus();
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+                    if (data.summary) {
+                        render(data);
+                    }
+                })
+                .catch(function () {
+                    // Silently retry on network error
+                });
+        }, 5000);
+    }
+
+    /* ── Trigger scan ── */
+
+    function run() {
+        hideError();
+        hideStatus();
+        stopPolling();
+        if (resultWrap) resultWrap.style.display = "none";
+        setLoading(true);
+
+        var params = getParams();
+        _lastParams = params;
 
         fetch(LEADER_BREAKOUT_ENDPOINT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+            body: JSON.stringify(params),
         })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-            .then(function (res) {
-                stopProgress();
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
                 setLoading(false);
-                if (!res.ok || res.data.error) {
-                    showError(res.data.error || "扫描失败");
+                if (data.error) {
+                    showError(data.error);
                     return;
                 }
-                render(res.data);
+                if (data.status === "scanning") {
+                    // Scan started in background — poll for results
+                    startPolling(params);
+                    return;
+                }
+                // Got results immediately (cached)
+                render(data);
             })
             .catch(function (e) {
-                stopProgress();
                 setLoading(false);
-                showError(e.message || "网络错误（扫描可能超时，请重试）");
+                showError(e.message || "网络错误（扫描可能超时，请刷新页面重试）");
             });
     }
 
-    /* ── Progress animation ── */
-    function startProgress() {
-        progressWrap.style.display = "block";
-        progressBar.style.width = "0%";
-        progressBar.style.transition = "none";
-        progressText.textContent = "全市场扫描中，预计约2分钟...";
+    /* ── Auto-check on tab open ── */
 
-        var width = 0;
-        _progressInterval = setInterval(function () {
-            // Non-linear: fast start, slow towards end
-            if (width < 30) width += 1.5;
-            else if (width < 60) width += 0.8;
-            else if (width < 85) width += 0.3;
-            else width += 0.05;
-            if (width > 92) width = 92;
-            progressBar.style.width = width + "%";
-            var elapsed = Math.round(width * 1.3); // ~120s total
-            progressText.textContent = "扫描中... 已耗时约" + elapsed + "秒";
-        }, 1000);
-    }
+    function autoCheck() {
+        hideError();
+        hideStatus();
+        stopPolling();
+        if (resultWrap) resultWrap.style.display = "none";
 
-    function stopProgress() {
-        if (_progressInterval) clearInterval(_progressInterval);
-        progressBar.style.transition = "width 0.5s ease";
-        progressBar.style.width = "100%";
-        progressText.textContent = "扫描完成！";
-        setTimeout(function () {
-            progressWrap.style.display = "none";
-        }, 800);
+        var params = getParams();
+        _lastParams = params;
+
+        fetch(buildGetUrl(params))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.summary) {
+                    // Cached results available → render immediately
+                    render(data);
+                    return;
+                }
+                if (data.status === "scanning") {
+                    // Scan in progress → start polling
+                    startPolling(params);
+                    return;
+                }
+                // idle or error — show nothing, user needs to click "开始扫描"
+            })
+            .catch(function () {
+                // Silently ignore — user can manually trigger scan
+            });
     }
 
     /* ── Render ── */
+
     function render(data) {
+        if (!resultWrap) return;
         resultWrap.style.display = "block";
         if (btnExport) btnExport.style.display = "";
         var s = data.summary;
         var stocks = data.stocks || [];
 
-        // Summary
+        // Summary grid
         var recoveredPct = s.qualified > 0 ? Math.round(s.recovered / s.qualified * 100) : 0;
-        summaryDiv.innerHTML = '<div class="crash-summary-grid">' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">扫描股票</div><div class="crash-summary-val">' + s.total_stocks_scanned + '</div></div>' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">符合条件</div><div class="crash-summary-val" style="color:var(--apple-blue);">' + s.qualified + '</div></div>' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">已突破前高</div><div class="crash-summary-val" style="color:var(--data-positive);">' + s.recovered + ' (' + recoveredPct + '%)</div></div>' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">未突破</div><div class="crash-summary-val" style="color:var(--data-negative);">' + s.not_recovered + '</div></div>' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">平均回调天数</div><div class="crash-summary-val">' + (s.avg_pullback_days != null ? s.avg_pullback_days : "—") + '</div></div>' +
-            '<div class="crash-summary-item"><div class="crash-summary-label">平均突破天数</div><div class="crash-summary-val">' + (s.avg_breakthrough_days != null ? s.avg_breakthrough_days : "—") + '</div></div>' +
-            '</div>';
+        if (summaryDiv) {
+            summaryDiv.innerHTML = '<div class="crash-summary-grid">' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">扫描股票</div><div class="crash-summary-val">' + s.total_stocks_scanned + '</div></div>' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">符合条件</div><div class="crash-summary-val" style="color:var(--apple-blue);">' + s.qualified + '</div></div>' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">已突破前高</div><div class="crash-summary-val" style="color:var(--data-positive);">' + s.recovered + ' (' + recoveredPct + '%)</div></div>' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">未突破</div><div class="crash-summary-val" style="color:var(--data-negative);">' + s.not_recovered + '</div></div>' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">平均回调天数</div><div class="crash-summary-val">' + (s.avg_pullback_days != null ? s.avg_pullback_days : "—") + '</div></div>' +
+                '<div class="crash-summary-item"><div class="crash-summary-label">平均突破天数</div><div class="crash-summary-val">' + (s.avg_breakthrough_days != null ? s.avg_breakthrough_days : "—") + '</div></div>' +
+                '</div>';
+        }
 
         // Table header
-        tableHead.innerHTML =
-            '<th>股票名称</th>' +
-            '<th>首次涨停</th>' +
-            '<th>涨停天数</th>' +
-            '<th>高峰价格</th>' +
-            '<th>次日跌停</th>' +
-            '<th>回调天数</th>' +
-            '<th>低点价格</th>' +
-            '<th>突破天数</th>' +
-            '<th>新高价格</th>';
+        if (tableHead) {
+            tableHead.innerHTML =
+                '<th>股票名称</th>' +
+                '<th>首次涨停</th>' +
+                '<th>涨停天数</th>' +
+                '<th>高峰价格</th>' +
+                '<th>次日跌停</th>' +
+                '<th>回调天数</th>' +
+                '<th>低点价格</th>' +
+                '<th>突破天数</th>' +
+                '<th>新高价格</th>';
+        }
 
         if (stocks.length === 0) {
-            tableWrap.style.display = "none";
-            emptyEl.style.display = "block";
-            emptyEl.innerHTML = '<div style="font-size:24px;margin-bottom:8px;">&#128270;</div><div>未找到符合条件的龙头股（连续涨停' + (data.summary.qualified > 0 ? '' : ' ≥6天') + '）</div>';
+            if (tableWrap) tableWrap.style.display = "none";
+            if (emptyEl) {
+                emptyEl.style.display = "block";
+                emptyEl.innerHTML = '<div style="font-size:24px;margin-bottom:8px;">&#128270;</div><div>未找到符合条件的龙头股（连续涨停 ≥6天）</div>';
+            }
         } else {
-            tableWrap.style.display = "block";
-            emptyEl.style.display = "none";
+            if (tableWrap) tableWrap.style.display = "block";
+            if (emptyEl) emptyEl.style.display = "none";
 
             var bodyHtml = "";
             stocks.forEach(function (s) {
@@ -155,48 +255,18 @@
                     '<td>' + nhHtml + '</td>' +
                     '</tr>';
             });
-            tableBody.innerHTML = bodyHtml;
+            if (tableBody) tableBody.innerHTML = bodyHtml;
         }
     }
 
-    /* ── Helpers ── */
-    function escapeHtml(str) {
-        var div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-    }
+    /* ── Export Excel ── */
 
-    function setLoading(show) {
-        loadingEl.style.display = show ? "flex" : "none";
-        if (show) resultWrap.style.display = "none";
-    }
-
-    function showError(msg) {
-        errorEl.textContent = msg;
-        errorEl.style.display = "block";
-    }
-
-    function hideError() {
-        errorEl.style.display = "none";
-    }
-
-    /* ── Export ── */
     function exportExcel() {
         if (!btnExport) return;
         btnExport.textContent = "⏳ 生成中...";
         btnExport.disabled = true;
 
-        var body = {
-            start_date: "2024-09-30",
-            threshold: 9.5,
-            min_consecutive_days: 6,
-        };
-        var startEl = document.getElementById("lbStartDate");
-        var threshEl = document.getElementById("lbThreshold");
-        var minDaysEl = document.getElementById("lbMinDays");
-        if (startEl) body.start_date = startEl.value || "2024-09-30";
-        if (threshEl) body.threshold = parseFloat(threshEl.value) || 9.5;
-        if (minDaysEl) body.min_consecutive_days = parseInt(minDaysEl.value) || 6;
+        var body = getParams();
 
         fetch(LEADER_BREAKOUT_EXPORT_ENDPOINT, {
             method: "POST",
@@ -227,6 +297,18 @@
     }
 
     /* ── Bind ── */
+
     if (btnRun) btnRun.addEventListener("click", run);
     if (btnExport) btnExport.addEventListener("click", exportExcel);
+
+    // Auto-check for cached results when the leader tab is first opened
+    var _autoChecked = false;
+    document.querySelectorAll('.tab-btn[data-tab="leader"]').forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            if (!_autoChecked) {
+                _autoChecked = true;
+                autoCheck();
+            }
+        });
+    });
 })();

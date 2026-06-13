@@ -70,6 +70,66 @@ _leader_cache: Optional[Dict] = None
 _leader_cache_time: float = 0.0
 _leader_cache_lock = threading.RLock()
 
+# Background scan state
+_scan_status: Dict = {"status": "idle"}
+_scan_lock = threading.RLock()
+
+
+def _get_cache(start_date: str, threshold: float, min_days: int) -> Optional[Dict]:
+    """Return cached scan results if valid, else None."""
+    global _leader_cache, _leader_cache_time
+    ck = _cache_key(start_date, threshold, min_days)
+    with _leader_cache_lock:
+        if _leader_cache is not None and _leader_cache.get("_key") == ck:
+            if time.time() - _leader_cache_time < LEADER_CACHE_TTL:
+                return dict(_leader_cache)  # shallow copy to avoid mutation
+    return None
+
+
+def start_background_scan(
+    start_date: str, threshold: float, min_days: int,
+    workers: int = 10, max_stocks: int = 0,
+) -> None:
+    """Launch a background scan thread. Returns immediately."""
+    global _scan_status
+    ck = _cache_key(start_date, threshold, min_days)
+
+    with _scan_lock:
+        if _scan_status.get("status") == "scanning" and _scan_status.get("key") == ck:
+            logger.info("Background scan already running for key=%s, skipping", ck)
+            return
+        _scan_status = {"status": "scanning", "key": ck, "started_at": time.time()}
+
+    def _run():
+        global _scan_status
+        try:
+            logger.info("Background scan started: key=%s", ck)
+            run_leader_breakout_scan(
+                start_date=start_date,
+                threshold=threshold,
+                min_consecutive_days=min_days,
+                workers=workers,
+                force_refresh=True,
+                max_stocks=max_stocks,
+            )
+            with _scan_lock:
+                _scan_status = {"status": "done", "key": ck, "done_at": time.time()}
+            logger.info("Background scan completed: key=%s", ck)
+        except Exception as e:
+            logger.exception("Background scan failed: key=%s, error=%s", ck, e)
+            with _scan_lock:
+                _scan_status = {"status": "error", "key": ck, "error": str(e), "done_at": time.time()}
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    logger.info("Background scan thread started: key=%s", ck)
+
+
+def get_scan_status() -> Dict:
+    """Return current scan status dict."""
+    with _scan_lock:
+        return dict(_scan_status)
+
 
 # ---------------------------------------------------------------------------
 # Stock list — AKShare + local JSON cache
