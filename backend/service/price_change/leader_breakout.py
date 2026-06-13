@@ -6,6 +6,8 @@ then analyzes the subsequent pullback and new-high breakthrough.
 Data source: AKShare (Sina finance for kline, stock list).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -17,9 +19,17 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import akshare as ak
-import pandas as pd
 import requests
+
+try:
+    import akshare as ak
+except ImportError:
+    ak = None  # type: ignore
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +163,8 @@ def _is_excluded_stock(code: str, name: str) -> bool:
 
 def _discover_stocks_akshare() -> List[Dict[str, str]]:
     """Fetch all A-share stocks via AKShare, filter to main board only."""
+    if ak is None:
+        raise ImportError("akshare未安装，请联系管理员执行: pip install akshare")
     df = ak.stock_info_a_code_name()
     stocks: List[Dict[str, str]] = []
     for _, row in df.iterrows():
@@ -202,15 +214,22 @@ def fetch_eligible_stocks() -> List[Dict[str, str]]:
 # and decode everything in the main thread.
 # ---------------------------------------------------------------------------
 
-import py_mini_racer
-from akshare.stock.cons import zh_sina_a_stock_hist_url, hk_js_decode
+try:
+    import py_mini_racer
+    from akshare.stock.cons import zh_sina_a_stock_hist_url, hk_js_decode
+except ImportError:
+    py_mini_racer = None  # type: ignore
+    zh_sina_a_stock_hist_url = ""
+    hk_js_decode = ""
 
 # Pre-compile the JS decoder once (thread-safe as long as single MiniRacer instance)
-_mini_racer: Optional[py_mini_racer.MiniRacer] = None
+_mini_racer = None  # Optional[MiniRacer]
 
 
-def _get_mini_racer() -> py_mini_racer.MiniRacer:
+def _get_mini_racer():
     global _mini_racer
+    if py_mini_racer is None:
+        raise ImportError("py_mini_racer is not installed. Install with: pip install py_mini_racer")
     if _mini_racer is None:
         _mini_racer = py_mini_racer.MiniRacer()
         _mini_racer.eval(hk_js_decode)
@@ -238,8 +257,10 @@ def _fetch_raw_sina_text(code: str) -> Optional[str]:
         return None
 
 
-def _decode_sina_klines(raw_texts: Dict[str, str]) -> Dict[str, pd.DataFrame]:
+def _decode_sina_klines(raw_texts: Dict[str, str]) -> Dict:
     """Decode a batch of raw Sina JS texts into DataFrames. Call from main thread."""
+    if pd is None:
+        raise ImportError("pandas未安装，请联系管理员执行: pip install pandas")
     mr = _get_mini_racer()
     results: Dict[str, pd.DataFrame] = {}
     for code, text in raw_texts.items():

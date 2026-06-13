@@ -2,3 +2,8 @@ Flask==3.1.0
 Flask-Cors==5.0.0
 requests==2.32.3
 urllib3==2.3.0
+# A股龙头统计依赖（重型，仅在触发扫描时需要）
+akshare>=1.16
+pandas>=2.0
+py-mini-racer>=0.6
+openpyxl>=3.1
