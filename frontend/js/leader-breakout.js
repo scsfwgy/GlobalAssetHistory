@@ -296,6 +296,28 @@
             });
     }
 
+    /* ── Requirement modal ── */
+
+    var reqOverlay = document.getElementById("lbRequirementOverlay");
+    var reqShowBtn = document.getElementById("lbShowRequirement");
+    var reqCloseBtn = document.getElementById("lbRequirementClose");
+
+    if (reqShowBtn && reqOverlay) {
+        reqShowBtn.addEventListener("click", function () {
+            reqOverlay.style.display = "flex";
+        });
+    }
+    if (reqCloseBtn && reqOverlay) {
+        reqCloseBtn.addEventListener("click", function () {
+            reqOverlay.style.display = "none";
+        });
+    }
+    if (reqOverlay) {
+        reqOverlay.addEventListener("click", function (e) {
+            if (e.target === reqOverlay) reqOverlay.style.display = "none";
+        });
+    }
+
     /* ── Bind ── */
 
     if (btnRun) btnRun.addEventListener("click", run);
