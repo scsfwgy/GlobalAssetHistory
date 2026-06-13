@@ -226,7 +226,7 @@ def leader_breakout():
         if cached:
             return jsonify(cached)
 
-        status = get_scan_status()
+        status = get_scan_status(start_date, threshold, min_days)
         status_map = {
             "scanning": "扫描进行中，请稍后刷新",
             "error": status.get("error", "扫描出错，请重试"),
@@ -264,9 +264,8 @@ def leader_breakout():
                 return jsonify(cached)
 
         # Check if a scan is already running for these params
-        status = get_scan_status()
-        ck = f"{start_date}|{threshold}|{min_days}"
-        if status.get("status") == "scanning" and status.get("key") == ck:
+        status = get_scan_status(start_date, threshold, min_days)
+        if status.get("status") == "scanning":
             return jsonify({
                 "status": "scanning",
                 "message": "扫描进行中，请稍后刷新页面查看结果",

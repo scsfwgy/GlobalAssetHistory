@@ -66,23 +66,23 @@ class BreakoutResult:
 # ---------------------------------------------------------------------------
 
 LEADER_CACHE_TTL = 4 * 60 * 60
-_leader_cache: Optional[Dict] = None
-_leader_cache_time: float = 0.0
+_leader_caches: Dict[str, Dict] = {}       # key → result dict
+_leader_cache_times: Dict[str, float] = {}  # key → timestamp
 _leader_cache_lock = threading.RLock()
 
-# Background scan state
-_scan_status: Dict = {"status": "idle"}
+# Background scan state — one entry per cache key
+_scan_statuses: Dict[str, Dict] = {}  # key → {"status":"scanning"|"done"|"error", ...}
 _scan_lock = threading.RLock()
 
 
 def _get_cache(start_date: str, threshold: float, min_days: int) -> Optional[Dict]:
     """Return cached scan results if valid, else None."""
-    global _leader_cache, _leader_cache_time
     ck = _cache_key(start_date, threshold, min_days)
     with _leader_cache_lock:
-        if _leader_cache is not None and _leader_cache.get("_key") == ck:
-            if time.time() - _leader_cache_time < LEADER_CACHE_TTL:
-                return dict(_leader_cache)  # shallow copy to avoid mutation
+        entry = _leader_caches.get(ck)
+        ts = _leader_cache_times.get(ck, 0)
+        if entry is not None and time.time() - ts < LEADER_CACHE_TTL:
+            return dict(entry)  # shallow copy to avoid mutation
     return None
 
 
@@ -91,17 +91,16 @@ def start_background_scan(
     workers: int = 10, max_stocks: int = 0,
 ) -> None:
     """Launch a background scan thread. Returns immediately."""
-    global _scan_status
     ck = _cache_key(start_date, threshold, min_days)
 
     with _scan_lock:
-        if _scan_status.get("status") == "scanning" and _scan_status.get("key") == ck:
+        existing = _scan_statuses.get(ck, {})
+        if existing.get("status") == "scanning":
             logger.info("Background scan already running for key=%s, skipping", ck)
             return
-        _scan_status = {"status": "scanning", "key": ck, "started_at": time.time()}
+        _scan_statuses[ck] = {"status": "scanning", "key": ck, "started_at": time.time()}
 
     def _run():
-        global _scan_status
         try:
             logger.info("Background scan started: key=%s", ck)
             run_leader_breakout_scan(
@@ -113,22 +112,29 @@ def start_background_scan(
                 max_stocks=max_stocks,
             )
             with _scan_lock:
-                _scan_status = {"status": "done", "key": ck, "done_at": time.time()}
+                _scan_statuses[ck] = {"status": "done", "key": ck, "done_at": time.time()}
             logger.info("Background scan completed: key=%s", ck)
         except Exception as e:
             logger.exception("Background scan failed: key=%s, error=%s", ck, e)
             with _scan_lock:
-                _scan_status = {"status": "error", "key": ck, "error": str(e), "done_at": time.time()}
+                _scan_statuses[ck] = {"status": "error", "key": ck, "error": str(e), "done_at": time.time()}
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     logger.info("Background scan thread started: key=%s", ck)
 
 
-def get_scan_status() -> Dict:
-    """Return current scan status dict."""
+def get_scan_status(start_date: str = None, threshold: float = None, min_days: int = None) -> Dict:
+    """Return scan status for given params, or the first active scan if no params given."""
     with _scan_lock:
-        return dict(_scan_status)
+        if start_date and threshold is not None and min_days is not None:
+            ck = _cache_key(start_date, threshold, min_days)
+            return dict(_scan_statuses.get(ck, {"status": "idle"}))
+        # Return first non-idle status, or idle
+        for s in _scan_statuses.values():
+            if s.get("status") != "done":
+                return dict(s)
+        return {"status": "idle"}
 
 
 # ---------------------------------------------------------------------------
@@ -511,13 +517,15 @@ def run_leader_breakout_scan(
     Phase 2: serial MiniRacer decode in main thread
     Phase 3: concurrent streak detection + breakout analysis
     """
-    global _leader_cache, _leader_cache_time
+    global _leader_caches, _leader_cache_times
     ck = _cache_key(start_date, threshold, min_consecutive_days)
     with _leader_cache_lock:
-        if not force_refresh and _leader_cache is not None:
-            if _leader_cache.get("_key") == ck and time.time() - _leader_cache_time < LEADER_CACHE_TTL:
+        if not force_refresh:
+            entry = _leader_caches.get(ck)
+            ts = _leader_cache_times.get(ck, 0)
+            if entry is not None and time.time() - ts < LEADER_CACHE_TTL:
                 logger.info("Returning cached leader breakout results")
-                return _leader_cache
+                return entry
 
     start_ts = time.time()
 
@@ -609,8 +617,13 @@ def run_leader_breakout_scan(
     }
 
     with _leader_cache_lock:
-        _leader_cache = output
-        _leader_cache_time = time.time()
+        _leader_caches[ck] = output
+        _leader_cache_times[ck] = time.time()
+        # Cleanup stale entries (> 2x TTL) to prevent unbounded growth
+        stale = [k for k, t in _leader_cache_times.items() if time.time() - t > LEADER_CACHE_TTL * 2]
+        for k in stale:
+            _leader_caches.pop(k, None)
+            _leader_cache_times.pop(k, None)
 
     return output
 
