@@ -15,6 +15,11 @@ let PRESETS = []; // [{key, label, symbols}, ...] loaded from backend
 let _currentSymKeys = []; // symbols currently shown in table columns
 let _lastYearlyData = null; // {years, data} from last fetch, for line charts
 let _mChartHidden = []; // hidden series indices for monthly chart
+let _sortBy = null; // symbol key currently sorted (null = default year desc)
+let _sortDir = "desc"; // "asc" or "desc"
+let _lastFetchTime = null; // Date.now() of last successful data fetch
+let _lastFetchFn = null; // retry callback for the most recent fetch
+const STORAGE_KEY = "gah_state";
 
 // ─── DOM refs ───
 
@@ -78,10 +83,18 @@ function setConnected(ok) {
 
 // ─── Error / Loading ───
 
-function showError(msg) {
-  if (!msg) { error.style.display = "none"; return; }
-  error.textContent = msg;
-  error.style.display = "block";
+function showError(msg, retryFn) {
+  error.style.display = msg ? "block" : "none";
+  if (!msg) return;
+  var html = escapeHtml(msg);
+  if (retryFn) {
+    html += ' <button class="pc-error-retry" id="pcErrorRetry">重试</button>';
+  }
+  error.innerHTML = html;
+  if (retryFn) {
+    var btn = error.querySelector("#pcErrorRetry");
+    if (btn) btn.addEventListener("click", retryFn);
+  }
 }
 
 function setLoading(on) {
@@ -175,6 +188,7 @@ function renderTags() {
       const idx = parseInt(el.dataset.index, 10);
       symbols.splice(idx, 1);
       renderTags();
+      saveState();
     });
   });
 }
@@ -261,6 +275,7 @@ async function fetchData() {
   setLoading(true);
   table.style.display = "none";
   empty.style.display = "none";
+  _lastFetchFn = fetchData; // store for retry
 
   try {
     const resp = await fetch(ENDPOINT, {
@@ -277,16 +292,19 @@ async function fetchData() {
     const result = await resp.json();
     setConnected(true);
     _lastYearlyData = result;
+    _lastFetchTime = Date.now();
+    saveState();
+    updateFreshness();
     renderMetaInfo(result.meta);
     try {
       renderTable(result);
     } catch (renderErr) {
       console.error("renderTable error:", renderErr);
-      showError(`渲染失败: ${renderErr.message}`);
+      showError(`渲染失败: ${renderErr.message}`, fetchData);
     }
   } catch (e) {
     setConnected(false);
-    showError(`请求失败: ${e.message}`);
+    showError(`请求失败: ${e.message}`, fetchData);
     renderMetaInfo(null);
     empty.style.display = "block";
     table.style.display = "none";
@@ -339,16 +357,41 @@ function renderTable(result) {
   }
   _currentSymKeys = symKeys;
 
-  // Render header — name on a separate line below the symbol
+  // Sort indicator arrow
+  function sortArrow(sym) {
+    if (_sortBy !== sym) return '<span class="pc-sort-arrow" style="color:var(--apple-text-tertiary);">▼</span>';
+    return _sortDir === "desc"
+      ? '<span class="pc-sort-arrow active">▼</span>'
+      : '<span class="pc-sort-arrow active">▲</span>';
+  }
+
+  // Render header — clickable symbol columns for sorting
   tableHead.innerHTML =
     `<th>年份</th>` +
     symKeys.map((s) => {
       const name = nameLookup[s];
-      return name ? `<th>${s}<span class="pc-th-name">${name}</span></th>` : `<th>${s}</th>`;
+      const arrow = sortArrow(s);
+      return name
+        ? `<th class="pc-sortable-th" data-sort-sym="${s}" style="cursor:pointer;">${s}${arrow}<span class="pc-th-name">${name}</span></th>`
+        : `<th class="pc-sortable-th" data-sort-sym="${s}" style="cursor:pointer;">${s}${arrow}</th>`;
     }).join("");
 
-  // Render body (years are already sorted descending from API)
-  tableBody.innerHTML = years
+  // Sort years if a column is selected, otherwise keep API order (descending)
+  let sortedYears = [...years];
+  if (_sortBy && symKeys.includes(_sortBy)) {
+    sortedYears.sort((a, b) => {
+      const va = data[_sortBy]?.[a];
+      const vb = data[_sortBy]?.[b];
+      // nulls always sort to the end regardless of direction
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return _sortDir === "desc" ? vb - va : va - vb;
+    });
+  }
+
+  // Render body
+  tableBody.innerHTML = sortedYears
     .map((year) => {
       let cells = `<td>${year}</td>`;
       for (const sym of symKeys) {
@@ -361,6 +404,20 @@ function renderTable(result) {
       return `<tr>${cells}</tr>`;
     })
     .join("");
+
+  // Bind sort click handlers
+  tableHead.querySelectorAll(".pc-sortable-th").forEach((th) => {
+    th.addEventListener("click", () => {
+      const sym = th.dataset.sortSym;
+      if (_sortBy === sym) {
+        _sortDir = _sortDir === "desc" ? "asc" : "desc";
+      } else {
+        _sortBy = sym;
+        _sortDir = "desc";
+      }
+      renderTable({ years, data }); // re-render with sort
+    });
+  });
 
   // Multi-line chart
   _chartData = data;
@@ -393,7 +450,9 @@ function loadPreset(key) {
   const entry = PRESETS.find((p) => p.key === key);
   if (!entry || !entry.symbols) return;
   symbols = entry.symbols.map((s) => ({ ...s }));
+  _sortBy = null; _sortDir = "desc";
   renderTags();
+  saveState();
   fetchData();
 }
 
@@ -423,6 +482,7 @@ async function fetchMonthlyBatch(year) {
   if (mc) mc.innerHTML = "";
   renderMetaInfo(null);
   _lastYearlyData = null;
+  _lastFetchFn = function () { fetchMonthlyBatch(year); };
 
   try {
     const resp = await fetch(BATCH_MONTHLY_ENDPOINT, {
@@ -438,10 +498,13 @@ async function fetchMonthlyBatch(year) {
 
     const result = await resp.json();
     setConnected(true);
+    _lastFetchTime = Date.now();
+    saveState();
+    updateFreshness();
     renderMonthlyTable(result);
   } catch (e) {
     setConnected(false);
-    showError(`请求失败: ${e.message}`);
+    showError(`请求失败: ${e.message}`, function () { fetchMonthlyBatch(year); });
     empty.style.display = "block";
     table.style.display = "none";
   } finally {
@@ -546,27 +609,137 @@ function roundTo(val, decimals) {
   return Math.round(val * factor) / factor;
 }
 
+// ─── State persistence (localStorage) ───
+
+function saveState() {
+  try {
+    var state = {
+      symbols: symbols.map(function (s) { return { symbol: s.symbol, type: s.type, name: s.name || null }; }),
+      minRange: minRange.value,
+      maxRange: maxRange.value,
+      selectedYear: yearSelect ? yearSelect.value : "",
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (_) { /* quota exceeded or private browsing — silently ignore */ }
+}
+
+function restoreState() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    var state = JSON.parse(raw);
+    if (state.symbols && Array.isArray(state.symbols)) {
+      symbols = state.symbols;
+    }
+    if (state.minRange != null) minRange.value = state.minRange;
+    if (state.maxRange != null) maxRange.value = state.maxRange;
+    if (state.selectedYear && yearSelect) yearSelect.value = state.selectedYear;
+    return symbols.length > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+// ─── Data freshness indicator ───
+
+function updateFreshness() {
+  var el = document.getElementById("pcFreshness");
+  if (!el) return;
+  if (!_lastFetchTime) { el.style.display = "none"; return; }
+  var diffMs = Date.now() - _lastFetchTime;
+  var diffMin = Math.floor(diffMs / 60000);
+  var text;
+  if (diffMin < 1) text = "刚刚更新";
+  else if (diffMin < 60) text = diffMin + " 分钟前更新";
+  else { var hrs = Math.floor(diffMin / 60); text = hrs + " 小时前更新"; }
+  el.textContent = "· " + text;
+  el.className = "pc-freshness" + (diffMin > 30 ? " stale" : "");
+  el.style.display = "";
+}
+
+// ─── CSV export ───
+
+function exportCSV() {
+  if (!_lastYearlyData || !_lastYearlyData.years || !_lastYearlyData.data) return;
+  var data = _lastYearlyData.data;
+  var years = _lastYearlyData.years;
+
+  // Determine active symbols
+  var activeSymbols = symbols.filter(function (s) {
+    var d = data[s.symbol];
+    return d && Object.keys(d).length > 0;
+  });
+  if (activeSymbols.length === 0) return;
+
+  var symKeys = activeSymbols.map(function (s) { return s.symbol; });
+
+  // Build CSV: BOM for Excel Chinese compatibility
+  var rows = [];
+  rows.push("年份," + symKeys.join(","));
+
+  years.forEach(function (year) {
+    var cells = [String(year)];
+    symKeys.forEach(function (sym) {
+      var val = data[sym] && data[sym][year];
+      cells.push(val != null ? val.toFixed(2) : "");
+    });
+    rows.push(cells.join(","));
+  });
+
+  var csv = "﻿" + rows.join("\n");
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "涨跌幅数据.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ─── Init ───
 
 async function init() {
   // Load config (presets + color range)
   const cfg = await loadConfigFromServer();
   PRESETS = cfg.presets;
-  minRange.value = cfg.colorRange.min;
-  maxRange.value = cfg.colorRange.max;
+
+  // Restore previous state from localStorage (before applying config defaults)
+  var hadState = restoreState();
+  // Only apply config defaults for fields NOT restored
+  if (!hadState) {
+    minRange.value = cfg.colorRange.min;
+    maxRange.value = cfg.colorRange.max;
+  }
+
+  // CSV export button
+  var csvBtn = $("pcExportCsv");
+  if (csvBtn) csvBtn.addEventListener("click", exportCSV);
+
+  // Auto-refresh if state was restored
+  if (hadState) {
+    renderTags();
+    fetchData();
+  }
 
   // Add button
   addBtn.addEventListener("click", () => {
     addSymbol(symInput.value, typeSelect.value);
+    saveState();
   });
 
   symInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") addSymbol(symInput.value, typeSelect.value);
+    if (e.key === "Enter") { addSymbol(symInput.value, typeSelect.value); saveState(); }
   });
 
   clearBtn.addEventListener("click", () => {
     symbols = [];
     renderTags();
+    _sortBy = null; _sortDir = "desc";
+    _lastFetchTime = null;
+    saveState();
+    updateFreshness();
     const mc = $("pcMonthlyContainer");
     if (mc) mc.innerHTML = "";
     $("pcChartWrap").style.display = "none";
@@ -596,6 +769,9 @@ async function init() {
   // no longer depends on a prior yearly query.
   document.querySelectorAll('.tab-btn[data-tab="backtest"]').forEach((btn) => {
     btn.addEventListener("click", () => {
+      // Ensure backtest container is visible (yearly fetchData may have hidden it)
+      if (btWrap) btWrap.style.display = "";
+      if (btResult) btResult.style.display = "";
       try { populateBacktestOptions(); } catch (e) { console.error("bt opt fail:", e); }
     });
   });
@@ -606,9 +782,10 @@ async function init() {
   // Year select: Enter triggers query, Escape reverts to "历年汇总"
   if (yearSelect) {
     yearSelect.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") fetchData();
-      if (e.key === "Escape") { yearSelect.value = ""; fetchData(); }
+      if (e.key === "Enter") { saveState(); fetchData(); }
+      if (e.key === "Escape") { yearSelect.value = ""; saveState(); fetchData(); }
     });
+    yearSelect.addEventListener("change", () => { saveState(); });
   }
 
   // Render preset chips after loading presets
@@ -618,9 +795,11 @@ async function init() {
   const today = new Date().toISOString().slice(0, 10);
   if (btEndDate && !btEndDate.value) btEndDate.value = today;
 
-  // Enter key also triggers search in min/max fields
+  // Enter key also triggers search in min/max fields; save on blur
   minRange.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchData(); });
   maxRange.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchData(); });
+  minRange.addEventListener("change", saveState);
+  maxRange.addEventListener("change", saveState);
 
   // Check backend health
   fetch(`${API_BASE}/api/health`)

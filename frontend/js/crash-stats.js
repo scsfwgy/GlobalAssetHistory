@@ -40,9 +40,9 @@
         var endDate = (endInput.value || "").trim();
         var threshold = parseFloat(thresholdInput.value || "4.77");
 
-        if (!symbol) { showError("请输入股票代码"); return; }
-        if (!startDate || !endDate) { showError("请选择起止日期"); return; }
-        if (isNaN(threshold) || threshold <= 0) { showError("暴跌幅度必须是正数"); return; }
+        if (!symbol) { showError("请输入股票代码", run); return; }
+        if (!startDate || !endDate) { showError("请选择起止日期", run); return; }
+        if (isNaN(threshold) || threshold <= 0) { showError("暴跌幅度必须是正数", run); return; }
 
         setLoading(true);
         hideError();
@@ -63,12 +63,12 @@
             .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
             .then(function (res) {
                 setLoading(false);
-                if (!res.ok || res.data.error) { showError(res.data.error || "请求失败"); return; }
+                if (!res.ok || res.data.error) { showError(res.data.error || "请求失败", run); return; }
                 render(res.data);
             })
             .catch(function (e) {
                 setLoading(false);
-                showError(e.message || "网络错误");
+                showError(e.message || "网络错误", run);
             });
     }
 
@@ -465,9 +465,17 @@
         if (show) resultWrap.style.display = "none";
     }
 
-    function showError(msg) {
-        errorEl.textContent = msg;
+    function showError(msg, retryFn) {
         errorEl.style.display = "block";
+        var html = msg;
+        if (retryFn) {
+            html += ' <button class="pc-error-retry">重试</button>';
+        }
+        errorEl.innerHTML = html;
+        if (retryFn) {
+            var btn = errorEl.querySelector(".pc-error-retry");
+            if (btn) btn.addEventListener("click", retryFn);
+        }
     }
 
     function hideError() {
