@@ -84,14 +84,14 @@
 
     function startPolling(params) {
         stopPolling();
-        showStatus("扫描进行中，约2分钟…完成后自动刷新结果", true);
+        showStatus("扫描进行中，约2分钟…完成后自动刷新结果（稍后回来查看结果）", true);
 
         _pollTimer = setInterval(function () {
             fetch(buildGetUrl(params))
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (data.status === "scanning") {
-                        showStatus("扫描进行中，约2分钟…完成后自动刷新结果", true);
+                        showStatus("扫描进行中，约2分钟…完成后自动刷新结果（稍后回来查看结果）", true);
                         return;
                     }
                     if (data.status === "idle" || data.status === "error") {
