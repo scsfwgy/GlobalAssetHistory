@@ -12,7 +12,7 @@
         })(window, document, "clarity", "script", "x55ewjghix");
     </script>
     <title>历年涨跌幅</title>
-    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="/css/app.css">
     <style>
         /* ─── Layout ─── */
         .pc-controls {
@@ -1488,12 +1488,13 @@
                             <th class="etf-th-sort etf-th-num" data-etf-col="fee_per_10k">万元年费 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="premium">溢价率 <span class="etf-sort-arrow">⇅</span></th>
                             <th class="etf-th-sort etf-th-num" data-etf-col="premium_cost_per_10k">溢价万元盈亏 <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="tracking_error_30d_pct"><span class="has-tip" title="30日追踪误差 = 最近30个共同交易日内，每日（A股ETF涨跌幅 - 对应美股ETF涨跌幅）的累计值。越接近0，说明这段时间跟得越贴近；正数表示A股ETF累计跑赢，负数表示累计跑输。">30日追踪误差</span> <span class="etf-sort-arrow">⇅</span></th>
-                            <th class="etf-th-sort etf-th-num" data-etf-col="profit_diff_30d_per_10k"><span class="has-tip" title="30日万元收益差 = 最近30个共同交易日内，分别投入10000元到当前A股ETF和对应美股ETF（纳指组用QQQ，标普组用SPY）后的收益差额。正数表示A股ETF多赚，负数表示少赚。">30日万元收益差</span> <span class="etf-sort-arrow">⇅</span></th>
+                            <th class="etf-th-sort etf-th-num" data-etf-col="tracking_error_30d_pct"><span class="has-tip" title="30日真实误差：A股ETF价格涨跌 vs 美股基准ETF(QQQ/SPY)涨跌的30日累计差值。反映实际持有体验，含溢价波动。">30日真实误差</span> <span class="etf-sort-arrow">⇅</span></th>
+                            <th class="etf-th-sort etf-th-num" data-etf-col="profit_diff_30d_per_10k"><span class="has-tip" title="30日万元收益差：分别投入1万元到此A股ETF vs 对应美股ETF，最近30日的累计收益差额。">30日万元收益差</span> <span class="etf-sort-arrow">⇅</span></th>
+                            <th class="etf-th-sort etf-th-num" data-etf-col="nav_tracking_mae_30d"><span class="has-tip" title="30日追踪误差：基金净值日收益率与基准指数日收益率偏差的绝对值均值。纯净值层面，不含溢价噪声。越低=跟踪越紧：<0.05%极紧，<0.15%正常，>0.30%偏松。">30日追踪误差</span> <span class="etf-sort-arrow">⇅</span></th>
                         </tr>
                     </thead>
                     <tbody id="etfBody">
-                        <tr><td colspan="12" style="text-align:center;padding:24px;color:var(--apple-text-secondary);">加载中...</td></tr>
+                        <tr><td colspan="14" style="text-align:center;padding:24px;color:var(--apple-text-secondary);">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1510,8 +1511,7 @@
                     <button class="etf-chart-tab active" data-etf-chart="compare">涨跌幅对比</button>
                     <button class="etf-chart-tab" data-etf-chart="candle">蜡烛图</button>
                     <button class="etf-chart-tab" data-etf-chart="change">涨跌幅</button>
-                    <button class="etf-chart-tab" data-etf-chart="premium">溢价率</button>
-                    <button class="etf-chart-tab" data-etf-chart="tracking3">三线对比</button>
+                    <button class="etf-chart-tab" data-etf-chart="tracking3">误差追踪</button>
                     <button class="etf-chart-tab" data-etf-chart="amplitude">振幅</button>
                     <button class="etf-chart-tab" data-etf-chart="amount">成交额</button>
                 </div>
@@ -1613,7 +1613,7 @@
 
     </main>
 
-    <script src="js/api.js"></script>
+    <script src="/js/api.js"></script>
     <script>
       // Compact count formatting: 1234 -> 1.2K, 1500000 -> 1.5M, etc.
       // Truncate (floor) the decimal so we never overstate the real count.
@@ -1635,15 +1635,15 @@
         })
         .catch(function () {});
     </script>
-    <script src="js/price-change.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/drilldown.js"></script>
-    <script src="js/backtest.js"></script>
-    <script src="js/crash-stats.js"></script>
-    <script src="js/leader-breakout.js"></script>
-    <script src="js/etf-market.js"></script>
-    <script src="js/vix-chart.js"></script>
-    <script src="js/wishes.js"></script>
+    <script src="/js/price-change.js"></script>
+    <script src="/js/charts.js"></script>
+    <script src="/js/drilldown.js"></script>
+    <script src="/js/backtest.js"></script>
+    <script src="/js/crash-stats.js"></script>
+    <script src="/js/leader-breakout.js"></script>
+    <script src="/js/etf-market.js"></script>
+    <script src="/js/vix-chart.js"></script>
+    <script src="/js/wishes.js"></script>
     <script>
         // ─── Header settings dropdown ───
         (function () {

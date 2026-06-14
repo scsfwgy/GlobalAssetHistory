@@ -42,8 +42,10 @@ def _load_fee_data() -> None:
 _TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q="
 _REQUEST_TIMEOUT = 10
 _TRACKING_ERROR_TTL_SECONDS = 6 * 60 * 60
+_NAV_CACHE_TTL_SECONDS = 6 * 60 * 60
 _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "price_change_config.json"
 _tracking_error_cache: dict[str, tuple[float, dict]] = {}
+_nav_cache: dict[str, tuple[float, dict]] = {}
 _benchmark_map: dict[str, tuple[str, str]] = {}
 
 
@@ -490,12 +492,19 @@ def quote():
             q["premium_cost_per_10k"] = None
 
         tracking_rows = _fetch_etf_history_rows(q["code"], 180)
-        tracking = _compute_tracking_error_history(q["code"], tracking_rows) if tracking_rows else None
+        nav_map = None
+        if tracking_rows:
+            end_nav = tracking_rows[-1]["date"]
+            start_nav = tracking_rows[0]["date"]
+            if start_nav < end_nav:  # sanity check
+                nav_map = _fetch_etf_nav_cached(q["code"], start_nav, end_nav)
+        tracking = _compute_tracking_error_history(q["code"], tracking_rows, nav_map) if tracking_rows else None
         q["tracking_error_avg"] = tracking.get("avg") if tracking else None
         q["tracking_error_current"] = tracking.get("current") if tracking else None
         q["tracking_error_benchmark"] = tracking.get("benchmark") if tracking else None
         q["tracking_error_30d_pct"] = tracking.get("tracking_error_30d_pct") if tracking else None
         q["profit_diff_30d_per_10k"] = tracking.get("profit_diff_30d_per_10k") if tracking else None
+        q["nav_tracking_mae_30d"] = tracking.get("nav_tracking_mae_30d") if tracking else None
 
     return jsonify({
         "quotes": results,
@@ -857,4 +866,15 @@ def _fetch_etf_nav(symbol: str, start_date: str, end_date: str) -> dict:
         if oldest_in_page and oldest_in_page <= start_date:
             break
 
+    return nav_map
+
+
+def _fetch_etf_nav_cached(symbol: str, start_date: str, end_date: str) -> dict:
+    """Cached wrapper around _fetch_etf_nav with 6-hour TTL."""
+    cache_key = f"{symbol}:{start_date}:{end_date}"
+    cached = _nav_cache.get(cache_key)
+    if cached and time.time() - cached[0] < _NAV_CACHE_TTL_SECONDS:
+        return cached[1]
+    nav_map = _fetch_etf_nav(symbol, start_date, end_date)
+    _nav_cache[cache_key] = (time.time(), nav_map)
     return nav_map

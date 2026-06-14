@@ -264,6 +264,10 @@
             pctCell(has ? q.premium_cost_per_10k : null, 0, "元") +
             pctCell(has ? q.tracking_error_30d_pct : null, 2, "%") +
             pctCell(has ? q.profit_diff_30d_per_10k : null, 0, "元") +
+            // 30日追踪误差 (NAV-level MAE): no color, pure metric
+            (has && q.nav_tracking_mae_30d != null
+                ? '<td' + R + '>' + q.nav_tracking_mae_30d.toFixed(2) + '%' + C + 'td>'
+                : '<td' + R + '><span style="color:var(--apple-text-tertiary);">--' + C + 'span>' + C + 'td>') +
             C + "tr>";
 
         return { _html: html, _sv: getSortVal() };
@@ -345,6 +349,11 @@
         addTipLbl("30日万元收益差", diff30Tip);
         if (q && q.profit_diff_30d_per_10k != null) addVal((q.profit_diff_30d_per_10k>0?"+":"") + q.profit_diff_30d_per_10k.toFixed(0)+"元", q.profit_diff_30d_per_10k>0?"etf-pos":q.profit_diff_30d_per_10k<0?"etf-neg":"");
         else addVal("--");
+        var navTrackTip = "30日追踪误差：最近30个交易日，基金净值日收益率与基准指数(QQQ/SPY)日收益率偏差的绝对值均值。纯净值层面衡量跟踪紧度，不含溢价噪声。越低=跟踪越紧：<0.05%极紧，<0.15%正常，>0.30%偏松。";
+        addTipLbl("30日追踪误差", navTrackTip);
+        if (q && q.nav_tracking_mae_30d != null) {
+            addVal(q.nav_tracking_mae_30d.toFixed(3) + "%");
+        } else addVal("--");
 
         tbody.appendChild(tr1);
 
