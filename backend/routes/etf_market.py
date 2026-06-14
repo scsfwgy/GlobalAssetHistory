@@ -283,13 +283,24 @@ def _fetch_etf_history_rows(symbol: str, days: int = 120) -> list[dict]:
     return list(reversed(parsed[:days]))
 
 
-def _compute_tracking_error_history(symbol: str, etf_rows: list[dict]) -> dict:
-    """Compute rolling annualized tracking error vs the ETF benchmark."""
+def _compute_tracking_error_history(
+    symbol: str, etf_rows: list[dict], nav_map: Optional[dict] = None
+) -> dict:
+    """Compute rolling annualized tracking error vs the ETF benchmark.
+
+    When *nav_map* is provided (date → NAV), also computes NAV-based daily
+    tracking deviations — a purer measure of how closely the fund's actual
+    net asset value tracks the underlying index, without market-price noise.
+    """
     benchmark_symbol, benchmark_label = _benchmark_for_etf(symbol)
     if not benchmark_symbol or not etf_rows:
         return {"available": False, "benchmark": benchmark_label, "current": None, "avg": None, "history": []}
 
-    cache_key = f"{symbol}:{etf_rows[0]['date']}:{etf_rows[-1]['date']}:{len(etf_rows)}"
+    nav_hash = ""
+    if nav_map:
+        nav_dates = sorted(nav_map.keys())
+        nav_hash = f":nav{nav_dates[0]}:{nav_dates[-1]}:{len(nav_dates)}"
+    cache_key = f"{symbol}:{etf_rows[0]['date']}:{etf_rows[-1]['date']}:{len(etf_rows)}{nav_hash}"
     cached = _tracking_error_cache.get(cache_key)
     if cached and time.time() - cached[0] < _TRACKING_ERROR_TTL_SECONDS:
         return cached[1]
@@ -363,6 +374,41 @@ def _compute_tracking_error_history(symbol: str, etf_rows: list[dict]) -> dict:
         benchmark_30d_return = (1 + end["benchmark_return_pct"] / 100) / (1 + start["benchmark_return_pct"] / 100) - 1
         profit_diff_30d_per_10k = round((etf_30d_return - benchmark_30d_return) * 10000, 0)
 
+    # ── Price-level daily deviation series (for chart overlay) ──
+    price_tracking_daily = [
+        {"date": dt, "deviation_pct": round(dev * 100, 4)}
+        for dt, dev in deviations
+    ]
+
+    # ── NAV-based daily tracking deviation (pure NAV vs index, no market-price noise) ──
+    nav_tracking_daily: list[dict] = []
+    nav_tracking_mae_30d: Optional[float] = None
+    if nav_map:
+        nav_dates_sorted = sorted(nav_map.keys())
+        for i in range(1, len(nav_dates_sorted)):
+            dt = nav_dates_sorted[i]
+            prev_dt = nav_dates_sorted[i - 1]
+            nav_val = nav_map[dt]
+            prev_nav_val = nav_map[prev_dt]
+            if not prev_nav_val or prev_nav_val <= 0:
+                continue
+            nav_ret = nav_val / prev_nav_val - 1
+            bench_ret = benchmark_returns.get(dt)
+            if bench_ret is None:
+                continue
+            dev = nav_ret - bench_ret
+            nav_tracking_daily.append({
+                "date": dt,
+                "nav_return_pct": round(nav_ret * 100, 4),
+                "benchmark_return_pct": round(bench_ret * 100, 4),
+                "deviation_pct": round(dev * 100, 4),
+            })
+        if nav_tracking_daily:
+            recent = nav_tracking_daily[-30:]
+            nav_tracking_mae_30d = round(
+                sum(abs(d["deviation_pct"]) for d in recent) / len(recent), 4
+            )
+
     data = {
         "available": bool(history),
         "benchmark": benchmark_label,
@@ -374,6 +420,9 @@ def _compute_tracking_error_history(symbol: str, etf_rows: list[dict]) -> dict:
         "profit_diff_30d_per_10k": profit_diff_30d_per_10k,
         "history": history,
         "comparison": comparison,
+        "price_tracking_daily": price_tracking_daily,
+        "nav_tracking_mae_30d": nav_tracking_mae_30d,
+        "nav_tracking_daily": nav_tracking_daily,
     }
     _tracking_error_cache[cache_key] = (time.time(), data)
     return data
@@ -656,7 +705,7 @@ def history():
         total_fee = None
         fee_per_10k = None
 
-    tracking_error = _compute_tracking_error_history(symbol, parsed)
+    tracking_error = _compute_tracking_error_history(symbol, parsed, nav_map)
     tracking_by_date = {
         item["date"]: item["tracking_error_pct"]
         for item in tracking_error.get("history", [])
@@ -665,8 +714,26 @@ def history():
         item["date"]: item
         for item in tracking_error.get("comparison", [])
     }
+    nav_dev_by_date = {
+        item["date"]: item["deviation_pct"]
+        for item in tracking_error.get("nav_tracking_daily", [])
+    }
+    nav_ret_by_date = {
+        item["date"]: item["nav_return_pct"]
+        for item in tracking_error.get("nav_tracking_daily", [])
+    }
+    bench_ret_by_date = {
+        item["date"]: item["benchmark_return_pct"]
+        for item in tracking_error.get("nav_tracking_daily", [])
+    }
+    price_dev_by_date = {
+        item["date"]: item["deviation_pct"]
+        for item in tracking_error.get("price_tracking_daily", [])
+    }
     for p in parsed:
         p["tracking_error_pct"] = tracking_by_date.get(p["date"])
+        # Daily price-level deviation (ETF price return - benchmark return)
+        p["price_tracking_deviation_pct"] = price_dev_by_date.get(p["date"])
         comp = comparison_by_date.get(p["date"])
         if comp:
             p["etf_cum_return_pct"] = comp.get("etf_return_pct")
@@ -675,6 +742,11 @@ def history():
             p["etf_profit_per_10k"] = comp.get("etf_profit_per_10k")
             p["benchmark_profit_per_10k"] = comp.get("benchmark_profit_per_10k")
             p["profit_diff_per_10k"] = comp.get("profit_diff_per_10k")
+        # NAV-based daily tracking deviation (pure NAV vs index)
+        nd = nav_dev_by_date.get(p["date"])
+        p["nav_tracking_deviation_pct"] = nd
+        p["nav_return_pct"] = nav_ret_by_date.get(p["date"])
+        p["benchmark_daily_return_pct"] = bench_ret_by_date.get(p["date"])
 
     return jsonify({
         "symbol": symbol,
@@ -699,6 +771,8 @@ def history():
             "tracking_error_benchmark": tracking_error.get("benchmark"),
             "tracking_error_window_days": tracking_error.get("window_days"),
             "tracking_error_30d_pct": tracking_error.get("tracking_error_30d_pct"),
+            "nav_tracking_mae_30d": tracking_error.get("nav_tracking_mae_30d"),
+            "nav_tracking_benchmark": tracking_error.get("benchmark"),
             "profit_diff_30d_per_10k": tracking_error.get("profit_diff_30d_per_10k"),
         },
     })

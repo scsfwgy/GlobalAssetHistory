@@ -337,9 +337,9 @@
         } else {
             addVal("--");
         }
-        var tracking30Tip = "30日追踪误差 = 最近30个共同交易日内，每日（A股ETF涨跌幅 - 对应美股ETF涨跌幅）的累计值。越接近0，说明这段时间跟得越贴近；正数表示A股ETF累计跑赢，负数表示累计跑输。";
-        var diff30Tip = "30日万元收益差 = 最近30个共同交易日内，分别投入10000元到当前A股ETF和对应美股ETF（纳指组用QQQ，标普组用SPY）后的收益差额。正数表示A股ETF多赚，负数表示少赚。";
-        addTipLbl("30日追踪误差", tracking30Tip);
+        var tracking30Tip = "30日真实误差：最近30个共同交易日，A股ETF价格涨跌幅与美股基准ETF(QQQ/SPY)涨跌幅的累计差值。正数=A股ETF跑赢，负数=跑输。⚠️ 含溢价波动，非纯跟踪能力。";
+        var diff30Tip = "30日万元收益差：最近30个共同交易日，分别投入1万元到当前A股ETF和对应美股ETF后的收益差额。正数=多赚，负数=少赚。";
+        addTipLbl("30日真实误差", tracking30Tip);
         if (q && q.tracking_error_30d_pct != null) addVal((q.tracking_error_30d_pct>0?"+":"") + q.tracking_error_30d_pct.toFixed(2)+"%", q.tracking_error_30d_pct>0?"etf-pos":q.tracking_error_30d_pct<0?"etf-neg":"");
         else addVal("--");
         addTipLbl("30日万元收益差", diff30Tip);
@@ -401,6 +401,36 @@
         addLbl("换手率"); addVal(q && q.turnover != null ? q.turnover.toFixed(2)+"%" : "--");
 
         tbody.appendChild(tr);
+
+        // Row 3 — 30日 tracking metrics from history data (more accurate than real-time)
+        var tr3 = document.createElement("tr");
+        function l3(v, tip) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-label";if(tip){t.className+=" has-tip";t.title=tip;}tr3.appendChild(t); }
+        function v3(v, cls) { var t=document.createElement("td");t.textContent=v;t.className="etf-ds-val"+(cls?" "+cls:"");tr3.appendChild(t); }
+        function e3() { v3(""); }
+
+        var bm = st.nav_tracking_benchmark || st.tracking_error_benchmark || "QQQ/SPY";
+
+        // 30日真实误差 (price-level cumulative, from history)
+        l3("30日真实误差", "基于历史数据的30日真实误差：A股ETF价格涨跌幅 vs " + bm + "涨跌幅的累计差值。反映实际持有体验，含溢价波动影响。");
+        if (st.tracking_error_30d_pct != null) v3((st.tracking_error_30d_pct>0?"+":"") + st.tracking_error_30d_pct.toFixed(2) + "%", st.tracking_error_30d_pct>0?"etf-pos":"etf-neg");
+        else v3("--");
+
+        // 30日追踪误差 (NAV-level MAE, NEW)
+        l3("30日追踪误差", "基于净值的30日追踪紧度：基金净值日收益率 vs " + bm + "指数日收益率偏差的绝对值均值。纯净值层面衡量基金跟踪能力，不含溢价噪声。越低越好：<0.05%极紧，<0.15%正常，>0.30%偏松。");
+        if (st.nav_tracking_mae_30d != null) {
+            var mae = st.nav_tracking_mae_30d;
+            v3(mae.toFixed(3) + "%", mae <= 0.10 ? "etf-pos" : mae <= 0.25 ? "" : "etf-neg");
+        } else v3("--");
+
+        // 30日万元收益差 (compound profit diff)
+        l3("30日万元收益差", "最近30日，分别投入1万元到此A股ETF vs " + bm + "的累计收益差额。正数=多赚，负数=少赚。");
+        if (st.profit_diff_30d_per_10k != null) v3((st.profit_diff_30d_per_10k>0?"+":"") + st.profit_diff_30d_per_10k.toFixed(0) + "元", st.profit_diff_30d_per_10k>0?"etf-pos":"etf-neg");
+        else v3("--");
+
+        // Fill remaining cells to match table width
+        for (var fi = 0; fi < 7; fi++) e3();
+
+        tbody.appendChild(tr3);
     }
 
     function hideDetail() {
@@ -499,6 +529,15 @@
                         fmt("基准收益", b.benchmark_profit_per_10k, "yuan"),
                         fmt("收益差", b.profit_diff_per_10k, "yuan"),
                     ];
+                } else if (chartType === "tracking3") {
+                    lines = [
+                        "日期：" + b.date,
+                        fmt("收盘价", b.close),
+                        fmt("涨跌幅", b.change_pct, "pct"),
+                        fmt("溢价率", b.premium_pct, "pct"),
+                        fmt("真实误差(价格级)", b.price_tracking_deviation_pct, "pct"),
+                        fmt("追踪误差(净值级)", b.nav_tracking_deviation_pct, "pct"),
+                    ];
                 } else {
                     lines = [
                         "日期：" + b.date,
@@ -508,7 +547,8 @@
                         fmt("收盘价", b.close),
                         fmt("涨跌幅", b.change_pct, "pct"),
                         fmt("溢价率", b.premium_pct, "pct"),
-                        fmt("追踪误差", b.tracking_error_pct, "pct"),
+                        fmt("净值偏离", b.nav_tracking_deviation_pct, "pct"),
+                        fmt("真实误差", b.tracking_error_pct, "pct"),
                         fmt("振幅", b.amplitude_pct, "pct"),
                         fmt("成交额", b.amount, "amt"),
                     ];
@@ -591,6 +631,77 @@
             svg += '<text x="' + (PAD.left + 20) + '" y="16" fill="' + CLR.text + '" font-size="11">A股ETF万元收益' + C + "text>";
             svg += '<rect x="' + (PAD.left + 140) + '" y="7" width="10" height="10" rx="3" fill="#ff9f0a"' + "/>";
             svg += '<text x="' + (PAD.left + 156) + '" y="16" fill="' + CLR.text + '" font-size="11">' + benchmarkName + '万元收益' + C + "text>";
+            svg = addXAxis(svg, bars, n, xScale, H, PAD, CLR);
+            return svg;
+        }
+
+        // ── TRACKING3: 溢价率 + 真实误差(价格级) + 追踪误差(净值级) 三线 ──
+        if (chartType === "tracking3") {
+            var series = [
+                { key: "premium_pct", label: "溢价率", color: "#ff9f0a", unit: "%" },
+                { key: "price_tracking_deviation_pct", label: "真实误差", color: "#5ac8fa", unit: "%" },
+                { key: "nav_tracking_deviation_pct", label: "追踪误差", color: "#30d158", unit: "%" },
+            ];
+            var allVals = [], seriesData = [];
+            for (var s = 0; s < series.length; s++) {
+                var vals = [];
+                for (var i = 0; i < n; i++) {
+                    var v = bars[i][series[s].key];
+                    vals.push(v != null && isFinite(v) ? v : null);
+                    if (v != null && isFinite(v)) allVals.push(v);
+                }
+                seriesData.push(vals);
+            }
+            if (!allVals.length) return null;
+
+            // Shared Y range: symmetric around 0, covering all series
+            var absMax = Math.max(Math.abs(Math.min.apply(null, allVals)), Math.abs(Math.max.apply(null, allVals)));
+            absMax = Math.max(absMax, 1); // minimum range
+            absMax *= 1.15; // 15% padding
+            var dMin = -absMax, dMax = absMax, dRange = dMax - dMin;
+            var ly = function (v) { return PAD.top + plotH - ((v - dMin) / dRange) * plotH; };
+
+            // Grid + Y labels
+            for (var g = 0; g <= gridLines; g++) {
+                var val = dMin + (dRange / gridLines) * g;
+                var y = ly(val);
+                svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W - PAD.right) + '" y2="' + y + '" stroke="' + CLR.grid + '" stroke-width="0.5"' + "/>";
+                svg += '<text x="' + (PAD.left - 6) + '" y="' + (y + 4) + '" fill="' + CLR.textDim + '" font-size="10" text-anchor="end">' + val.toFixed(1) + "%" + C + "text>";
+            }
+            // Zero line
+            var zy = ly(0);
+            svg += '<line x1="' + PAD.left + '" y1="' + zy + '" x2="' + (W - PAD.right) + '" y2="' + zy + '" stroke="' + CLR.textDim + '" stroke-width="0.5" stroke-dasharray="3,3"' + "/>";
+
+            // Draw three lines
+            for (var s = 0; s < series.length; s++) {
+                var path = "";
+                for (var i = 0; i < n; i++) {
+                    if (seriesData[s][i] == null) continue;
+                    var py = ly(seriesData[s][i]);
+                    path += (path ? "L" : "M") + xScale(i).toFixed(1) + "," + py.toFixed(1) + " ";
+                }
+                if (path) {
+                    svg += '<path d="' + path + '" fill="none" stroke="' + series[s].color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"' + "/>";
+                }
+            }
+
+            // Legend
+            var lx = PAD.left + 4, lyOff = PAD.top + 12;
+            for (var s = 0; s < series.length; s++) {
+                svg += '<rect x="' + lx + '" y="' + (lyOff - 9) + '" width="28" height="3" fill="' + series[s].color + '" rx="1"' + "/>";
+                lx += 32;
+                svg += '<text x="' + lx + '" y="' + lyOff + '" fill="' + CLR.text + '" font-size="10">' + series[s].label + C + "text>";
+                lx += series[s].label.length * 10 + 14;
+            }
+
+            // Hover markers — small circles at each data point for the hovered index
+            var hoverId3 = "etfHover_tracking3";
+            for (var s = 0; s < series.length; s++) {
+                svg += '<circle id="' + hoverId3 + '_dot' + s + '" cx="0" cy="0" r="3" fill="' + series[s].color + '" style="display:none;pointer-events:none"' + "/>";
+            }
+            // Store series info for tooltip
+            svg += '<!-- tracking3_series:' + JSON.stringify(series.map(function(s){return s.key;})) + '-->';
+
             svg = addXAxis(svg, bars, n, xScale, H, PAD, CLR);
             return svg;
         }
